@@ -1,0 +1,3 @@
+include examples/*.py
+include data/*.npy
+include README.rst
