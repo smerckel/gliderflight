@@ -90,8 +90,8 @@ class ModelParameters(object):
     def define(self,**kw):
         ''' Define or set one or more glider configuration parameters.
 
-        :param **kw: keywords with parameter name and values
-        :type **kw: keyword assignment
+        :param kw: keywords with parameter name and values
+        :type kw: keyword assignment
 
         :example:
 
@@ -656,8 +656,9 @@ class Calibrate(object):
         
 
         .. note::
-        If already set ones (after set_input_data(), then mask can be
-        True or False to set all elements in mask.
+
+            If already set ones (after set_input_data(), then mask can be
+            True or False to set all elements in mask.
         '''
 
         if not self.mask is None and type(mask)==bool: # the mask has been set before and True of False is set
@@ -731,7 +732,8 @@ class Calibrate(object):
         :type U_relative: float or numpy array
 
         .. note::
-        A mask is automatically created (including all data) when this method is called.
+
+            A mask is automatically created (including all data) when this method is called.
         '''
         dhdt = dhdt or self.compute_dhdt(time, pressure)
         self.input_data = dict(time=time ,pressure=pressure, pitch=pitch, buoyancy_change=buoyancy_change,
@@ -799,11 +801,11 @@ class Calibrate(object):
         so any parameter that is used in the model description can be optimised for. Also the velocity
         component or combination of components can be set.
 
-        :param *p: variable length of parameter names to be optimised.
+        :param p: variable length of parameter names to be optimised.
         :param constraints: names of measured velocities against which glider flight is evaluated. These must be present in the dictionary supplied by the set_input_data() method.
         :param weights: if more than one constraint is provided, weights sets their relative importance.
         :param verbose: allows to print intermediate results during optimising
-        :type *p: string
+        :type p: string
         :type constraints: tuple/list of string, or single string when using one constraint
         :type weights: tuple/list of floats
         :type verbose: bool
@@ -824,9 +826,10 @@ class Calibrate(object):
             {'mg': 70.00131, 'Cd0':0.145343, 'ah':3.78787}
         
         .. note::
-        The default measurement to evaluate the model against is the depth rate dhdt. If not specified when
-        setting the input data using the set_input_data() method, it is computed automatically. Other velocity
-        components that are to be used to calibrate the model have to be set specifically.
+
+            The default measurement to evaluate the model against is the depth rate dhdt. If not specified when
+            setting the input data using the set_input_data() method, it is computed automatically. Other velocity
+            components that are to be used to calibrate the model have to be set specifically.
         '''
         constraints = self.__ensure_iterable(constraints)
         x0=[self.__dict__[i] for i in p]
