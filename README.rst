@@ -51,7 +51,7 @@ density. Furthermore, the model requires the specification of a number
 of coefficients:
 
 * mg: mass of the glider (kg)
-* Vg: volume of the glider (m:math:`$^{-3}$`)
+* Vg: volume of the glider (m$^{-3}$)
 * Cd0: parasite drag coefficient
 * epsilon: compressibility of the hull (Pa$^{-1}$)
 * ah: lift angle coefficient due to the hull (rad$^{-1}$)
@@ -88,7 +88,8 @@ operators to do this:
 
 By default a mask set to False for all data. To mask data for which a
 condition evaluates to True, the OR() method should be used. For
-example ::
+example, ::
+
    gm = SteadyStateCalibrate(rho0=1024)
    gm.set_input_data(datadict)
    
@@ -118,6 +119,7 @@ Example
 -------
 
 An example to calibrate a model::
+
    # create a dictionary with the data
 
    data = dict(time=t, pressure=P, pitch=pitch, buoyancy_change=deltaV)
