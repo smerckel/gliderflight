@@ -51,7 +51,7 @@ density. Furthermore, the model requires the specification of a number
 of coefficients:
 
 * mg: mass of the glider (kg)
-* Vg: volume of the glider (m$^{-3}$)
+* Vg: volume of the glider (m:math:`$^{-3}$`)
 * Cd0: parasite drag coefficient
 * epsilon: compressibility of the hull (Pa$^{-1}$)
 * ah: lift angle coefficient due to the hull (rad$^{-1}$)
@@ -88,15 +88,13 @@ operators to do this:
 
 By default a mask set to False for all data. To mask data for which a
 condition evaluates to True, the OR() method should be used. For
-example,
-
-```
-gm = SteadyStateCalibrate(rho0=1024)
-gm.set_input_data(datadict)
-
-condition = depth<10
-gm.OR(condition)
-```
+example ::
+   gm = SteadyStateCalibrate(rho0=1024)
+   gm.set_input_data(datadict)
+   
+   condition = depth<10
+   gm.OR(condition)
+   
 
 which would exclude all data points for which the depth is less than
 10 m from the evaluation of the cost-function.
@@ -119,61 +117,58 @@ A truth table:
 Example
 -------
 
-An example to calibrate a model:
+An example to calibrate a model::
+   # create a dictionary with the data
 
-```
-# create a dictionary with the data
+   data = dict(time=t, pressure=P, pitch=pitch, buoyancy_change=deltaV)
 
-data = dict(time=t, pressure=P, pitch=pitch, buoyancy_change=deltaV)
+   gm = SteadyStateCalibrate()
+   # we have to define mass and volume at the minimum
+   gm.define(mg=70, Vg=70)
 
-gm = SteadyStateCalibrate()
-# we have to define mass and volume at the minimum
-gm.define(mg=70, Vg=70)
+   gm.set_input_data(data)
 
-gm.set_input_data(data)
+   # mask all data below 10 m
+   gm.OR(pressure*10<10)
+   # mask all data exceeding 60 m
+   gm.OR(pressure*10>60)
 
-# mask all data below 10 m
-gm.OR(pressure*10<10)
-# mask all data exceeding 60 m
-gm.OR(pressure*10>60)
+   result = gm.calibrate("mg", "Cd0")
+   
+   print("Calibrated parameters:")
+   for k,v in result.items():
+       print("{}: {}".format(k,v)
 
-result = gm.calibrate("mg", "Cd0")
+   # Instead of printing the parameters from the results, we could also
+   # get them from the corresponding attributes: print("Cd0:", gm.Cd0).
 
-print("Calibrated parameters:")
-for k,v in result.items():
-    print("{}: {}".format(k,v)
+   print("Cd0:", gm.Cd0)
 
-# Instead of printing the parameters from the results, we could also
-# get them from the corresponding attributes: print("Cd0:", gm.Cd0).
+   # We also don't need to run the model again either. The model output
+   # is also accessible from attributes:
+   #
+   # gm.t # time
+   # gm.U # incident velocity
+   # gm.alpha # angle of attack
+   # gm.ug    # horizontal speed
+   # gm.wg    # vertical speed
+   # gm.w     # vertical water velocity
+   
+   # if we want to run a model with a given set of parameters
 
-print("Cd0:", gm.Cd0)
+   fm = DynamicGLiderModel(dt=1, rho0=1024, k1=0.02, k2=0.92)
+   # copy the settings from the steady state model
+   fm.copy_settings(gm)
 
-# We also don't need to run the model again either. The model output
-# is also accessible from attributes:
-#
-# gm.t # time
-# gm.U # incident velocity
-# gm.alpha # angle of attack
-# gm.ug    # horizontal speed
-# gm.wg    # vertical speed
-# gm.w     # vertical water velocity
+   solution = fm.solve(data)
+   
+   # solution is now a named tuple, according to the definition:
+   # Modelresult = namedtuple("Modelresult", "t u w U alpha pitch ww")
 
-# if we want to run a model with a given set of parameters
-
-fm = DynamicGLiderModel(dt=1, rho0=1024, k1=0.02, k2=0.92)
-# copy the settings from the steady state model
-fm.copy_settings(gm)
-
-solution = fm.solve(data)
-
-# solution is now a named tuple, according to the definition:
-# Modelresult = namedtuple("Modelresult", "t u w U alpha pitch ww")
-
-```
 
 How to cite
 -----------
-When using this software and the results are published, please use the
+When you publish results that were obtained with this software, please use the
 following citation: XXXXXXXXXXXX
 
 
