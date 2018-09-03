@@ -1,19 +1,31 @@
 Installing GliderFlight
 =======================
 
-This page covers the steps required to download the software and
-to install the GliderFLight module.
 
-Getting the source code
------------------------
+Download
+--------
 
-The source code is publicly maintained on github
+The software's repository is hosted on `github
+<https://github.com/smerckel/gliderflight>`_, from where you can
+download the source using git or download it as a zip file.
 
+Installing
+----------
+After having obtained the source code, you can build it using the
+standard way of installing python code. On linux this would be ::
+  
+  $ python3 setup.py build
+  $ python3 setup.py install
 
-Installing the source code
---------------------------
+Depending on your system setup, the ``install`` command may require root privileges.
 
+Dependencies
+^^^^^^^^^^^^
+The gliderflight module depends on numpy.
 
-Contributing to development
----------------------------
+PyPi
+----
+In due time, the module will also made available on PyPi, so that it
+can be installed using pip.
+
 

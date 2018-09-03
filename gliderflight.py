@@ -19,6 +19,11 @@ class ModelParameters(object):
     model. The class is meant to be subclassed from model
     implementations.
 
+    Parameters
+    ----------
+    parameterised_parameters_dict: dict
+        dictionary of parameters that should be computed rather then being set explicitly
+
     
     Methods defined in this class:
 
@@ -29,16 +34,12 @@ class ModelParameters(object):
     * cd1_estimate(): estimates the induced drag coefficient
     * aw_estimate: estimates the lift coefficient due to the wings using a parameterisation
 
+
+
     '''
     
 
     def __init__(self, parameterised_parameters_dict):
-        ''' Constructor
-
-        :param parameterised_parameters_dict: a dictionary of parameters that should be computed rather then being set explicitly
-        :type parameterised_parameters_dict: dictionary
-
-        '''
         
         self.parameters = 'Cd0 Cd1 S eOsborne AR Omega mg epsilon Vg Cd1_hull aw ah'.split()
         self.parametersAoa = 'Cd0 Cd1 eOsborne AR Omega S Cd1_hull ah aw'.split()
@@ -54,7 +55,7 @@ class ModelParameters(object):
         self.modelresult = None
         
     def show_settings(self):
-        '''Print model parameters '''
+        '''Prints model parameters '''
         
         p = list(self.parameters)
         p.sort()
@@ -65,13 +66,17 @@ class ModelParameters(object):
     def copy_settings(self, other):
         ''' Copy model parameters 
 
-        :param other: an other instance of this class (or subclassing this class)
-        :type other: ModelParameters
+        Copy model parameters from a different instance of ModelParameters and apply it to 
+        to self.
 
-        :example:
+        Parameters
+        ----------
+        other : ModelParameters
+            an other instance of this class (or subclassing this class)
 
-        dynamic_model.copy_settings(steady_state_model)
-
+        Examples
+        --------
+        >>> dynamic_model.copy_settings(steady_state_model)
         '''
         p = list(self.parameters)
         for _p in p:
@@ -80,24 +85,30 @@ class ModelParameters(object):
     def get_settings(self):
         ''' Get model settings 
 
-        :return: a dictionary with the current parameter setting
-        :rtype: dict
+        Return a dictionary with model coefficient settings
+        
+        Returns
+        -------
+        settings : dict
+            a dictionary with the current parameter setting
 
         '''
         settings = dict((p, self.__dict__[p]) for p in list(self.parameters))
         return settings
     
     def define(self,**kw):
-        ''' Define or set one or more glider configuration parameters.
+        ''' Define (set) one or more glider configuration parameters.
 
-        :param kw: keywords with parameter name and values
-        :type kw: keyword assignment
-
-        :example:
-
-           glidermodel.define(Cd0=0.24)
+        Parameters
+        ----------
+        kw : dict
+            keywords with parameter name and values
         
-           glidermodel.define(Vg=50e-3, mg=60)
+
+        Examples
+        --------
+        >>> glidermodel.define(Cd0=0.24)
+        >>> glidermodel.define(Vg=50e-3, mg=60)
 
         '''
         for k,v in kw.items():
@@ -124,26 +135,40 @@ class ModelParameters(object):
     def has_aoa_parameter_changed(self):
         ''' test whether any of the parameters that appear in the angle of attack estimate have changed
 
-        :return: test result
-        :rtype: bool
-
+        Returns
+        -------
+        rv : bool
+            test result
         '''
         rv=self.__aoa_parameter_changed
         return rv
 
     def undefined_parameters(self):
         ''' Returns undefined parameters
+        
+        Checks all model coefficients for having been set. All coeficients set to None
+        are returned.
 
-        :return: list of undefined parametrs
-        :rtype: list
+        Returns
+        -------
+        list : list-comprehension
+            list of undefined parametrs
         '''
         return [i for i in self.parameters if self.__dict__[i]==None and i not in self._parameterised_parameters]
 
     def cd1Estimate(self):
         ''' Parameterisation for Cd1 
+        
+        Computes Cd1 using a parameterisation. 
 
-        :return: Value for Cd1
-        :rtype: float
+        Returns
+        -------
+        Cd1_param : float
+            parameterised value of Cd1
+
+        Notes
+        -----
+        If Cd1 is set by using define, the set value takes precedence.
         '''
         # check whether all parameters are defined:
         for i in 'aw eOsborne AR Cd1_hull'.split():
@@ -151,20 +176,30 @@ class ModelParameters(object):
                 raise ModelParameterError()
         Cd1_w = self.aw**2/np.pi/self.eOsborne/self.AR
         Cd1_hull = self.Cd1_hull
-        return Cd1_w + Cd1_hull
+        Cd1_param = Cd1_w + Cd1_hull
+        return Cd1_param
 
     def awEstimate(self):
         ''' Parameterisation for aw 
+        
+        Computes aw using a parameterisation
 
-        :return: Value for aw
-        :rtype: float
+        Returns
+        -------
+        aw_param : float
+            parameterised value of aw
+
+        Notes
+        -----
+        If aw is set by using define, the set value takes precedence.
         '''
 
         # check whether all parameters are defined:
         for i in 'AR Omega'.split():
             if self.__dict__[i]==None:
                 raise ModelParameterError()
-        return 2*np.pi*self.AR/(2+np.sqrt(self.AR**2*(1+np.tan(self.Omega)**2)+4))
+        aw_param = 2*np.pi*self.AR/(2+np.sqrt(self.AR**2*(1+np.tan(self.Omega)**2)+4))
+        return aw_param
 
 
 
@@ -185,12 +220,19 @@ class GliderModel(object):
     def convert_pressure_Vbp_to_SI(self, m_water_pressure, m_de_oil_vol):
         ''' converts units of glider sensor data into SI data 
 
-        :param m_water_pressure: water pressure in bar
-        :type m_water_pressure: array or float
-        :param m_de_oil_vol: buoyancy change reported by glider in cc
-        :type m_de_oil_vol: array or float
-        :return: converted values
-        :rtype: tuple of numpy arrays
+        Parameters
+        ----------
+        m_water_pressure : array-like or float
+            water pressure in bar
+        m_de_oil_vol : array-like or float
+            buoyancy change reported by glider in cc
+        
+        Returns
+        -------
+        pressure : array-like or float
+            pressure (Pa)
+        Vbp : array-like or float
+            volume of bulyancy change (m^3)
         '''
         pressure=m_water_pressure*1e5 # Pa
         Vbp=m_de_oil_vol*1e-6 # m^3
@@ -199,14 +241,21 @@ class GliderModel(object):
     def compute_FB_and_Fg(self, pressure, rho, Vbp):
         ''' Computes the vertical forces FB and Fg
 
-        :param pressure: pressure (Pa)
-        :param rho: in-situ density (kg m$^{-3}$)
-        :param Vbp: volume of buoyancy change (m$^{-3}$)
-        :type pressure: numpy array or float
-        :type rho: numpy array or float
-        :type Vbp: numpy array or float
-        :return: Computed buoyancy and gravity forces
-        :rtype: tuple length 2 of numpy arrays or floats
+        Parameters
+        ----------
+        pressure : array-like or float
+            pressure (Pa)
+        rho : array-like or float
+            in-situ density (kg m$^{-3}$)
+        Vbp : array-like or float
+            volume of buoyancy change (m$^{-3}$)
+
+        Returns
+        -------
+        FB : Buoyancy force
+            array-like or float
+        Fg : Gravity force
+            float
         '''
         g=self.G
         #
@@ -221,14 +270,20 @@ class GliderModel(object):
     def compute_dhdt(self, time, pressure):
         ''' Compute the depth rate from the pressure
 
-        :param time: time (s)
-        :param pressure: pressure (Pa)
-        :type time: numpy array or float
-        :type pressure: numpy array of float
-        :return: depth rate
-        :rtype: numpy array or float
+        Parameters
+        ----------
+        time : array-like
+            time in s 
+        pressure : array-like
+            pressure (Pa)
+        
+        Returns
+        -------
+        : array-like
+            depth-rate (m/s)
 
-        .. note::
+        Notes
+        -----
             The density used to convert pressure into depth is given by self.RHO0
         '''
         return -np.gradient(pressure*1e5)/np.gradient(time)/self.RHO0/self.G
@@ -236,14 +291,25 @@ class GliderModel(object):
     def compute_lift_and_drag(self,alpha, U, rho):
         ''' Compute lift and drag forces
 
-        :param alpha: angle of attack (rad)
-        :param U: incident water velocity
-        :param rho: in-situ density
-        :type alpha: numpy array or float
-        :type U: numpy array or float
-        :type rho: numpy array or float
-        :return: dynamic pressure, lift force and drag force
-        :rtype: tuple of length 3 with numpy arrays or floats
+        Computes lift and drag forces using parameterised functions
+        
+        Parameters
+        ----------
+        alpha : array-like or float
+            angle of attack
+        U : array-like or float
+            incident water velocity
+        rho : array-like or float
+            in-situ density
+        
+        Returns
+        -------
+        q : array-like or float
+            dynamic pressure (Pa)
+        L : array-like or float
+            lift force (Pa)
+        D : array-like or float
+            drag force (Pa)
         '''
         q = 0.5 * rho * self.S * U**2
         L = q * (self.aw + self.ah)*alpha*self.stall_factor(alpha)
@@ -289,6 +355,13 @@ class SteadyStateGliderModel(ModelParameters, GliderModel):
     provided by GliderModel. Interacting with ModelParameters is done through methods
     provided by ModelParameters.
 
+
+    Parameters
+    ----------
+    rho0 : float
+        background in-situ density
+
+
     The only method provided by this class that is of interest to the user is solve().
     The input to solve is a dictionary with time, pressure, pitch, buoyancy change density.
 
@@ -297,23 +370,19 @@ class SteadyStateGliderModel(ModelParameters, GliderModel):
     
     After solving the model results are available as properties (t, U, wg, w, alpha)
 
-    :example:
-    
-    >>>gm = SteadyStateGliderModel(rho0=1024)
-    >>>gm.define(mg=70)
-    >>>gm.define(Vg=68, Cd0=0.15)
-    >>>gm.solve(dict(time=tctd, pressure=P, pitch=pitch, buoyancy_change=buoyancy_drive, density=density))
-    >>>print(gm.U)
+    Examples
+    --------
+
+    >>> gm = SteadyStateGliderModel(rho0=1024)
+    >>> gm.define(mg=70)
+    >>> gm.define(Vg=68, Cd0=0.15)
+    >>> gm.solve(dict(time=tctd, pressure=P, pitch=pitch, buoyancy_change=buoyancy_drive, density=density))
+    >>> print(gm.U)
 
     '''
 
     
     def __init__(self, rho0=None):
-        '''Constructor
-        
-        :param rho0: background in-situ density
-        :type rho0: float
-        '''
         ModelParameters.__init__(self, dict(aw=self.awEstimate, Cd1=self.cd1Estimate))
         GliderModel.__init__(self, rho0=rho0)
         self.pitch_i = np.linspace(0.05*np.pi/180, 60*np.pi/180,100)
@@ -331,16 +400,24 @@ class SteadyStateGliderModel(ModelParameters, GliderModel):
         
     def solve_for_angle_of_attack(self, pitch):
         ''' Solves for the angle of attack
-
-        :param pitch: pitch
-        :type pitch: float or numpy array
-        :return: angle of attack
-        :rtype: float or numpy array
         
-        .. note::
-           This method uses an interpolating function. If any parameter on which this calculation 
-           depends, changes, the interpolating function is recomputed. Whether any of these parameters
-           is changed, is tracked by the define() method. 
+        Solves angle of attack using an interative method.
+        
+        Parameters
+        ----------
+        pitch : array-like or float
+            pitch (rad)
+        
+        Returns
+        -------
+        aoa : array-like or float
+            angle of attack (rad)
+        
+        Notes
+        -----
+        This method uses an interpolating function. If any parameter on which this calculation 
+        depends, changes, the interpolating function is recomputed. Whether any of these parameters
+        is changed, is tracked by the ModelParameters.define() method. 
         '''
         
         if self.has_aoa_parameter_changed() or self.ifun is None:
@@ -361,7 +438,10 @@ class SteadyStateGliderModel(ModelParameters, GliderModel):
         return aoa
         
     def solve_model(self, rho, FB, pitch, Fg):
-        ''' Solves first for angle of attack and then incident velocity'''
+        ''' Solves first for angle of attack and then incident velocity
+        
+        Not intended to be called directly.
+        '''
         alpha = self.solve_for_angle_of_attack(pitch)
         
         q=(FB-Fg)*np.sin(pitch+alpha)/(self.Cd0+self.Cd1*alpha**2)
@@ -374,16 +454,26 @@ class SteadyStateGliderModel(ModelParameters, GliderModel):
     def solve(self, data):
         ''' Solve the model
 
-        :param data: environment data
-        :type data: dict
-        :return: model result
-        :rytpe: Modelresult (named tuple with t, u, w, U, alpha,  pitch, ww fields)
+        Solves the flight model.
 
+        Parameters
+        ----------
+        data : dict
+            environment data (see Notes)
+        
+        Returns
+        -------
+        modelresult : Modelresult
+            model result (named tuple with arrays of computed results)
+
+        Notes
+        -----
         The data supplied should contain at least time, pressure, pitch, buoyancy_change and
         density, as reported by the glider. Depth rate (dhdt) will be added if not already present.
         Other data are ignored.
 
-        :example:
+        Examples
+        --------
         
         >>> gm = SteadyStateGliderModel()
         >>> gm.define(mg=70, Vg=68)
@@ -418,6 +508,26 @@ class DynamicGliderModel(ModelParameters, GliderModel):
     provided by GliderModel. Interacting with ModelParameters is done through methods
     provided by ModelParameters.
 
+    
+    Parameters
+    ----------
+    dt : float or None
+        time step (s)
+    rho0 : float
+        background density (kg m$^{-3}$)
+    k1 : float
+        added mass fraction in longitudinal direction
+    k2 : float
+        added mass fraction perpendicular to longitudinal direction
+    alpha_linear : float
+        angle (rad) up to which the parameterisation is considered linear
+    alpha_stall : float
+        angle (rad) up to which no lift will be generated (stalling angle)
+    max_depth_considered_surface : float
+        depth as reported by the pressure sensor which is considered the surface (u=w=0)
+
+
+
     The only method provided by this class that is of interest to the user is solve().
     The input to solve is a dictionary with time, pressure, pitch, buoyancy change density.
 
@@ -435,14 +545,14 @@ class DynamicGliderModel(ModelParameters, GliderModel):
     Added mass terms are specified by the coefficients k1 and k2, which refer to the added mass terms
     along the principle glider axis (k1) and vertically perpendicular (k2), where k1 and k2 are given
     as fraction of the glider mass mg. 
-    :example:
-    
+
+    Examples
+    --------
     >>>dm = DynamicGliderModel(rho0=1024, k1=0.2, k2=0.92, mg=70)
     >>>dm.define(mg=70)
     >>>dm.define(Vg=68, Cd0=0.15)
     >>>dm.solve(dict(time=tctd, pressure=P, pitch=pitch, buoyancy_change=buoyancy_drive, density=density))
     >>>print(dm.U)
-
     '''
 
     def __init__(self, dt=None, rho0=None, k1=0.20, k2=0.92, alpha_linear=90, alpha_stall=90,
@@ -498,7 +608,33 @@ class DynamicGliderModel(ModelParameters, GliderModel):
         return k_u, k_w
     
     def RK4(self, h, M, FBg, pitch, rho, at_surface, u, w):
-        ''' Runge-Kutta integration method '''
+        ''' Runge-Kutta integration method 
+
+        Implementation to solve the model using the classic Runge-Kutta integration method.
+        
+        Parameters
+        ----------
+        h : float
+            time step (s)
+        M : matrix (2x)
+            mass (and added mass matrix, inverted)
+        FBg : array
+            nett buoyancy force
+        pitch : array
+            pitch as recored by glider (rad)
+        rho : array
+            in-situ density (kg m$^{-3}$)
+        at_surface : array of bool
+            condition whether or not at the surface
+        u : array
+            horizontal glider velocity (m s$^{-1}$)
+        w : array
+            vertical glider velocity (m s$^{-1}$)
+
+        Notes
+        -----
+        The results are not returned as such. The parameters u and w are updated in place.
+        '''
         N = u.shape[0]
         data = np.array([FBg, pitch, rho, at_surface, *M]).T
         # compute input data on mid points h/2
@@ -596,17 +732,26 @@ class DynamicGliderModel(ModelParameters, GliderModel):
     def solve(self, data):
         ''' Solve the model
 
-        :param data: environment data
-        :type data: dict
-        :return: model result
-        :rytpe: Modelresult (named tuple with t, u, w, U, alpha,  pitch, ww fields)
+        Solves the flight model.
 
+        Parameters
+        ----------
+        data : dict
+            environment data (see Notes)
+        
+        Returns
+        -------
+        modelresult : Modelresult
+            model result (named tuple with arrays of computed results)
+
+        Notes
+        -----
         The data supplied should contain at least time, pressure, pitch, buoyancy_change and
         density, as reported by the glider. Depth rate (dhdt) will be added if not already present.
         Other data are ignored.
 
-        :example:
-        
+        Examples
+        --------
         >>> dm = DynamciGliderModel(dt=1, k1=0.2, k2=0.98, rho0=1024)
         >>> dm.define(mg=70, Vg=68)
         >>> data = dict(time=time, pressure=P, pitch=pitch, buoyancy_change=vb, density=rho)
@@ -650,15 +795,15 @@ class Calibrate(object):
         '''Set a mask 
 
         Masks those data that should not be used to calibrate.
-        
-        :param mask: mask
-        :type mask: bool or numpy array
-        
+       
+        Parameters
+        ----------
+        mask : array of bool or bool
 
-        .. note::
-
-            If already set ones (after set_input_data(), then mask can be
-            True or False to set all elements in mask.
+        Notes
+        -----
+        If already set ones (after set_input_data(), then mask can be
+        True or False to set all elements in mask.
         '''
 
         if not self.mask is None and type(mask)==bool: # the mask has been set before and True of False is set
@@ -678,8 +823,9 @@ class Calibrate(object):
         
         The new mask is the intersection (AND) of the existing mask and supplied mask
 
-        :param mask: mask
-        :type mask: bool or numpy array
+        Parameters
+        ----------
+        mask : array of bool or bool
         '''
         self.mask &= self.__ensure_booltype(mask)
 
@@ -687,8 +833,10 @@ class Calibrate(object):
         ''' Logical OR
 
         The new mask is the union (OR) of the existing mask and the supplied mask.
-        :param mask: mask
-        :type mask: bool or numpy array
+
+        Parameters
+        ----------
+        mask : array of bool or bool
         '''
         self.mask |= self.__ensure_booltype(mask)
 
@@ -696,8 +844,9 @@ class Calibrate(object):
         ''' Logical NAND
 
         The new mask is the inverted intersection of the existing mask and the supplied mask.
-        :param mask: mask
-        :type mask: bool or numpy array
+        Parameters
+        ----------
+        mask : array of bool or bool
         '''
         self.mask &= ~self.__ensure_booltype(mask)
         
@@ -712,28 +861,30 @@ class Calibrate(object):
         in-situ density
         and optionally u_relative and w_relative
         
-        :param time: time (s)
-        :param pressure: pressure (Pa)
-        :param pitch: pitch (rad)
-        :param buoyancy_change: buoyancy change reported by the glider (cc)
-        :param density: in-situ density (kg m${-3}$)
-        :param dhdt: depth rate m s$^{-1}$ (optional, if not given it is computed from pressure)
-        :param u_relative: measured horizontal speed m s$^{-1}$ (optional)
-        :param w_relative: measured vertical speed m s$^{-1}$ (optional)
-        :param U_relative: measured speed through water m s$^{-1}$ (optional)
-        :type time: float or numpy array
-        :type pressure: float or numpy array
-        :type pitch: float or numpy array
-        :type buoyancy_change: float or numpy array
-        :type density: float or numpy array
-        :type dhdt: float or numpy array
-        :type u_relative: float or numpy array
-        :type w_relative: float or numpy array
-        :type U_relative: float or numpy array
+        Parameters
+        ----------
+        time : array
+            time (s)
+        pressure : array
+            pressure (Pa)
+        pitch : array
+            pitch (rad)
+        buoyancy_change : array
+            buoyancy change reported by the glider (cc)
+        ensity : array
+            in-situ density (kg m${-3}$)
+        dhdt : array, optional
+            depth rate m s$^{-1}$ (if not given it is computed from pressure)
+        u_relative : array, optional
+            measured horizontal speed m s$^{-1}$
+        w_relative : array, optional
+            measured vertical speed m s$^{-1}$
+        U_relative : array
+            measured speed through water m s$^{-1}$
 
-        .. note::
-
-            A mask is automatically created (including all data) when this method is called.
+        Notes
+        -----
+        A mask is automatically created (including all data) when this method is called.
         '''
         dhdt = dhdt or self.compute_dhdt(time, pressure)
         self.input_data = dict(time=time ,pressure=pressure, pitch=pitch, buoyancy_change=buoyancy_change,
@@ -749,18 +900,23 @@ class Calibrate(object):
         This method first sets the parameters which are to be optimised for, and then
         computes the glider flight. A "cost" is computed from relatively weighted constraints.
 
-        :param x: values of the parameters to be varied
-        :param parameters: parameter names
-        :param constraints: names of measured velocities against which glider flight is evaluated. These must be present in the dictionary supplied by the set_input_data() method.
-        :param weights: if more than one constraint is provided, weights sets their relative importance.
-        :param verbose: allows to print intermediate results during optimising
-        :type x: numpy array
-        :type parameters: tuple/list of strings
-        :type constraints: tuple/list of string, or single string when using one constraint
-        :type weights: tuple/list of floats
-        :type verbose: bool
-        :return: RMS value of exposed measurements (not masked)
-        :rtype: float
+        Parameters
+        ----------
+        x : array
+            values of the parameters to be varied
+        parameters : list of str
+            parameter names
+        constraints : tuple or list of str
+            names of measured velocities against which glider flight is evaluated. These must be present in the dictionary supplied by the set_input_data() method.
+        weights : None or array-like of float
+            weights of constraints. If more than one constraint is provided, weights sets their relative importance.
+        verbose : bool
+            print intermediate results during optimising
+        
+        Returns
+        -------
+        mse : float
+            RMS value of exposed measurements (not masked)
         '''
         # set the data
         kwds=dict([(_p,_x) for _p,_x in zip(parameters,x)])
@@ -801,19 +957,24 @@ class Calibrate(object):
         so any parameter that is used in the model description can be optimised for. Also the velocity
         component or combination of components can be set.
 
-        :param p: variable length of parameter names to be optimised.
-        :param constraints: names of measured velocities against which glider flight is evaluated. These must be present in the dictionary supplied by the set_input_data() method.
-        :param weights: if more than one constraint is provided, weights sets their relative importance.
-        :param verbose: allows to print intermediate results during optimising
-        :type p: string
-        :type constraints: tuple/list of string, or single string when using one constraint
-        :type weights: tuple/list of floats
-        :type verbose: bool
-        :return: the result of the optimisation routine
-        :rtype: dict
-
-        :example:
+        Parameters
+        ----------
+        p : variable length parameters
+            variable length of parameter names to be optimised.
+        constraints : list/tuple of str
+            names of measured velocities against which glider flight is evaluated. These must be present in the dictionary supplied by the set_input_data() method.
+        weights : None or array-like
+            weights. If more than one constraint is provided, weights sets their relative importance.
+        verbose : bool
+            prints intermediate results during optimising
         
+        Returns
+        -------
+        rv : dict
+            the result of the optimisation routine
+
+        Examples
+        --------
         >>> # calibrating for mass and drag coefficient (implicitly using depth-rate) and printing  
         >>> # intermediate results (mainly for debugging/progress monitoring)
         >>> results = gm.calibrate("mg", "Cd0", verbose=True)
@@ -825,11 +986,11 @@ class Calibrate(object):
         >>> print(results)
             {'mg': 70.00131, 'Cd0':0.145343, 'ah':3.78787}
         
-        .. note::
-
-            The default measurement to evaluate the model against is the depth rate dhdt. If not specified when
-            setting the input data using the set_input_data() method, it is computed automatically. Other velocity
-            components that are to be used to calibrate the model have to be set specifically.
+        Notes
+        -----
+        The default measurement to evaluate the model against is the depth rate dhdt. If not specified when
+        setting the input data using the set_input_data() method, it is computed automatically. Other velocity
+        components that are to be used to calibrate the model have to be set specifically.
         '''
         constraints = self.__ensure_iterable(constraints)
         x0=[self.__dict__[i] for i in p]

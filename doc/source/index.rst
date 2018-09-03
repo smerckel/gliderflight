@@ -16,10 +16,20 @@ software under the MIT License.
    :maxdepth: 2
    :caption: Contents:
 
-   introduction
+   readme	     
    installation   
    using_gliderflight
    modules
+   
+   
+Contact
+~~~~~~~
+
+If you have any suggestions, remarks or feature wishes, you can
+contact me via
+
+email: <lucas.merckelbach@hzg.de>
+
 	    
 
 Indices and tables

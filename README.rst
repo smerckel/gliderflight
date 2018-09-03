@@ -11,27 +11,33 @@ turbulent dissipation rates from temperature microstructure or shear
 probe data, collected with a turbulence profiler mounted on top of an
 ocean glider.
 
-Introduction
+Background
 ------------
-The dissipation rate of turbulent kinetic energy is a pa-
-rameter that plays a key role in many physical and biogeo-
-chemical processes in oceans and coastal seas. However,
-direct oceanic measurements of turbulence are relatively
-scarce, as most observations stem from free-falling pro-
-filers, operated from seagoing vessels.
+
+The dissipation rate of turbulent kinetic energy is a parameter that
+plays a key role in many physical and biogeo chemical processes in
+oceans and coastal seas. However, direct oceanic measurements of
+turbulence are relatively scarce, as most observations stem from
+free-falling profilers, operated from seagoing vessels.
 
 
-An emerging alternative to ship-based profiling is the
-use of ocean gliders with mounted turbulence profilers.
-A required parameter in the processing of mi-
-crostructure shear and temperature measurements is the
-speed of flow past the sensors. This speed can be measured directly
-with additional sensor, such as an electromagnetic current meter or
-mounted acoustic Doppler current profiler, but often gliders are not
-equipped with additional velocity sensors. Alternatively, a glider
-flight model can be used to estimate the speed through water. Such a
-model is described in a paper XXXXXXXXXX. This Python model implements
-the steady-state and dynamic glider flight models, described therein.
+An emerging alternative to ship-based profiling is the use of ocean
+gliders with mounted turbulence profilers.  A required parameter in
+the processing of microstructure shear and temperature measurements is
+the speed of flow past the sensors. This speed can be measured
+directly with additional sensor, such as an electromagnetic current
+meter or mounted acoustic Doppler current profiler, but often gliders
+are not equipped with additional velocity sensors. Alternatively, a
+glider flight model can be used to estimate the speed through
+water. Such a model is described in a paper XXXXXXXXXX. This Python
+model implements the steady-state and dynamic glider flight models,
+described therein.
+
+Documentation
+-------------
+
+Documentation of this software package can be found at 
+http://dockserver0.hzg.de/software/gliderflight/index.html
 
 Steady-state model
 ------------------
