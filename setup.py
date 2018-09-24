@@ -4,9 +4,10 @@ import codecs
 import os
 from setuptools import find_packages, setup
 
+import gliderflight
 
 # semantic versioning
-VERSION = '0.1.0'
+VERSION = gliderflight.__version__
 
 
 here = os.path.abspath(os.path.dirname(__file__))
@@ -28,7 +29,8 @@ setup(
     author='Lucas Merckelbach',
     author_email='lucas.merckelbach@hzg.de',
     license='MIT',
-    py_modules=['gliderflight'],
+    #py_modules=['gliderflight'],
+    packages=['gliderflight'],
     #packages=find_packages(where='.', exclude=['tests', 'docs'])
     classifiers=[
         'Development Status :: 4 - Beta',
@@ -43,6 +45,8 @@ setup(
     keywords=['ocean gliders', 'glider flight', 'oceanography'],
     install_requires=install_requires,
     include_package_data=True,
+    entry_points = {'console_scripts':['glidertrim = gliderflight.glidertrim:main'],
+                    'gui_scripts':[]}
     #scripts=scripts,
 )
 # how to provide scripts etct
