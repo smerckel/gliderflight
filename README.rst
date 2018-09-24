@@ -57,11 +57,11 @@ density. Furthermore, the model requires the specification of a number
 of coefficients:
 
 * mg: mass of the glider (kg)
-* Vg: volume of the glider (m$^{-3}$)
+* Vg: volume of the glider (m\ :math:`^{3}`)
 * Cd0: parasite drag coefficient
-* epsilon: compressibility of the hull (Pa$^{-1}$)
-* ah: lift angle coefficient due to the hull (rad$^{-1}$)
-* Cd1: induced drag coefficient (rad$^{-2}$)
+* epsilon: compressibility of the hull (Pa\ :math:`^{-1}`)
+* ah: lift angle coefficient due to the hull (rad\ :math:`^{-1}`)
+* Cd1: induced drag coefficient (rad\ :math:`^{-2}`)
 
 Using the depth-rate from the pressure sensor as only model
 constraint, the mass (or glider volume) and the parasite drag

@@ -19,6 +19,7 @@ software under the MIT License.
    readme	     
    installation   
    using_gliderflight
+   glidertrim
    modules
    
    

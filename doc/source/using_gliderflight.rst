@@ -10,7 +10,10 @@ files from a Slocum glider. Typically, we would work with the
 high-density data files, and would need to have access to the
 engineering data, which are stored in files with the dbd extension,
 and science data, which are stored in files with the ebd extension. In
-this example, we use ``dbdreader`` to read the glider files.
+this example, we use ``dbdreader`` to read the glider files. The
+Python module dbdreader can be installed from PyPi using ``pip3
+install --user dbdreader`` or install from source from `github
+<https://github.com/smerckel/dbdreader>`_
 
 ::
    
