@@ -19,7 +19,7 @@ DEFAULTS = dict(target_density=1025, mg=65, Vg=65e-3, minlimitdepth=10, maxlimit
                 cond_a=1.0, cond_b=0., buoyancy_engine='shallow',latitude=54, longitude=8,
                 calibrate_epsilon='no')
 class UI(object):
-    CONFIGFILE=os.path.join(os.environ['HOME'],'.gliderflightrc')    
+    CONFIGFILE=os.path.join(os.environ['HOME'],'.glidertrimrc')    
     FLOAT_OPTIONS = "target_density mg Vg minlimitdepth maxlimitdepth cond_a cond_b latitude longitude".split()
     STR_OPTIONS = ["buoyancy_engine", "calibrate_epsilon"]
     UNITS = dict(mg="kg", Vg="m^3", minlimitdepth="m", maxlimitdepth="m", cond_a="m/S",
