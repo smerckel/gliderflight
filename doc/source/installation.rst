@@ -23,6 +23,15 @@ Dependencies
 ^^^^^^^^^^^^
 The gliderflight module depends on numpy.
 
+The glidertrim script -- useful to check and adjust the ballast trim
+of glider during deployment -- additionally depends on scipy,
+matplotlib, gsw, and dbdreader. All these packages are available from
+PyPi and will be downloaded automatically when not present. However,
+you may prefer to install the complex packages numpy, scipy and
+matplotlib using your distribution's package manager (when on linux).
+
+See also the file requirements.txt in the root directory.
+
 PyPi
 ----
 In due time, the module will also made available on PyPi, so that it
