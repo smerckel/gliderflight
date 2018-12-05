@@ -852,7 +852,7 @@ class Calibrate(object):
         
         
     def set_input_data(self,time ,pressure, pitch, buoyancy_change, density,
-                       dhdt=None, u_relative=None, w_relative=None, U_relative=None):
+                       dhdt=None, u_relative=None, w_relative=None, U_relative=None, **kwds):
         ''' Sets the input data
         time 
         pressure
