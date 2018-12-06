@@ -238,7 +238,7 @@ class GliderModel(object):
         Vbp=m_de_oil_vol*1e-6 # m^3
         return pressure, Vbp
 
-    def compute_FB_and_Fg(self, pressure, rho, Vbp):
+    def compute_FB_and_Fg(self, pressure, rho, Vbp, mg=None, Vg=None):
         ''' Computes the vertical forces FB and Fg
 
         Parameters
@@ -249,6 +249,12 @@ class GliderModel(object):
             in-situ density (kg m$^{-3}$)
         Vbp : array-like or float
             volume of buoyancy change (m$^{-3}$)
+        mg  : array-like, float or None
+            mass of glider (kg). If None (default), then 
+            self.mg is used for the computation
+        Vg  : array-like, float or None
+            Volume of glider (m$^{3}$). If None (default), then 
+            self.Vg is used for the computation
 
         Returns
         -------
@@ -257,10 +263,14 @@ class GliderModel(object):
         Fg : Gravity force
             float
         '''
+        if mg is None:
+            mg = self.mg
+        if Vg is None:
+            Vg = self.Vg
         g=self.G
         #
-        FB=g*rho*(self.Vg*(1.-self.epsilon*1e-10*pressure) + Vbp)
-        Fg=self.mg*g
+        FB=g*rho*(Vg*(1.-self.epsilon*1e-10*pressure) + Vbp)
+        Fg=mg*g
         return FB, Fg
         
 
@@ -288,7 +298,7 @@ class GliderModel(object):
         '''
         return -np.gradient(pressure*1e5)/np.gradient(time)/self.RHO0/self.G
     
-    def compute_lift_and_drag(self,alpha, U, rho):
+    def compute_lift_and_drag(self,alpha, U, rho, Cd0=None):
         ''' Compute lift and drag forces
 
         Computes lift and drag forces using parameterised functions
@@ -301,6 +311,9 @@ class GliderModel(object):
             incident water velocity
         rho : array-like or float
             in-situ density
+        Cd0 : array-like, float or None
+            parasite drag coefficient (-). If None (default), then 
+            self.Cd0 is used for the computation
         
         Returns
         -------
@@ -311,9 +324,11 @@ class GliderModel(object):
         D : array-like or float
             drag force (Pa)
         '''
+        if Cd0 is None:
+            Cd0 = self.Cd0
         q = 0.5 * rho * self.S * U**2
         L = q * (self.aw + self.ah)*alpha*self.stall_factor(alpha)
-        D = q * (self.Cd0 + self.Cd1*alpha**2)
+        D = q * (Cd0 + self.Cd1*alpha**2)
         return q, L, D
 
     # providing easy access to useful computational results as attributes
@@ -597,17 +612,17 @@ class DynamicGliderModel(ModelParameters, GliderModel):
                 r = np.exp(-d_alpha/tau_alpha)
         return r
     
-    def __compute_k(self, _u, _w, _rho, _pitch, _FBg, _m11, _m12, _m21, _m22, h):
+    def __compute_k(self, _u, _w, _rho, _pitch, _FBg, _m11, _m12, _m21, _m22, h, _Cd0):
         U = (_u**2 + _w**2)**(0.5)
         alpha = np.arctan2(_w, _u) - _pitch
-        q, L, D = self.compute_lift_and_drag(alpha, U, _rho)
+        q, L, D = self.compute_lift_and_drag(alpha, U, _rho, _Cd0)
         Fx = -np.cos(_pitch + alpha) * D + np.sin(_pitch + alpha)*L
         Fy = -np.cos(_pitch + alpha) * L - np.sin(_pitch + alpha)*D + _FBg
         k_u = h * (_m11*Fx + _m12*Fy)
         k_w = h * (_m21*Fx + _m22*Fy)
         return k_u, k_w
     
-    def RK4(self, h, M, FBg, pitch, rho, at_surface, u, w):
+    def RK4(self, h, M, FBg, pitch, rho, at_surface, Cd0, u, w):
         ''' Runge-Kutta integration method 
 
         Implementation to solve the model using the classic Runge-Kutta integration method.
@@ -630,6 +645,8 @@ class DynamicGliderModel(ModelParameters, GliderModel):
             horizontal glider velocity (m s$^{-1}$)
         w : array
             vertical glider velocity (m s$^{-1}$)
+        Cd0: array
+            Lift coefficient per time step
 
         Notes
         -----
@@ -643,29 +660,34 @@ class DynamicGliderModel(ModelParameters, GliderModel):
         for i in range(N-1):
             _u, _w = u[i], w[i]
             _FBg, _pitch, _rho, _at_surface, _m11, _m12, _m21, _m22 = data[i]
-            
+
+            if Cd0 is None: # use the self.Cd0 parameter
+                _Cd0 = self.Cd0
+            else: # we expect a Cd0 coefficient specified per time.
+                _Cd0 = Cd0[i]
+                
             if _at_surface:
                 u[i+1] = w[i+1] = 0
             else:
                 # stage 1
-                k1_u, k1_w = self.__compute_k(_u, _w, _rho, _pitch, _FBg, _m11, _m12, _m21, _m22, h)
+                k1_u, k1_w = self.__compute_k(_u, _w, _rho, _pitch, _FBg, _m11, _m12, _m21, _m22, h, _Cd0)
 
                 # stage 2
                 _FBg, _pitch, _rho, _at_surface, _m11, _m12, _m21, _m22 = data_mid[i]
                 __u = _u + k1_u*0.5
                 __w = _w + k1_w*0.5
-                k2_u, k2_w = self.__compute_k(__u, __w, _rho, _pitch, _FBg, _m11, _m12, _m21, _m22, h)
+                k2_u, k2_w = self.__compute_k(__u, __w, _rho, _pitch, _FBg, _m11, _m12, _m21, _m22, h, _Cd0)
                 
                 # stage 3
                 __u = _u + k2_u*0.5
                 __w = _w + k2_w*0.5
-                k3_u, k3_w = self.__compute_k(__u, __w, _rho, _pitch, _FBg, _m11, _m12, _m21, _m22, h)
+                k3_u, k3_w = self.__compute_k(__u, __w, _rho, _pitch, _FBg, _m11, _m12, _m21, _m22, h, _Cd0)
 
                 #stage 4
                 _FBg, _pitch, _rho, _at_surface, _m11, _m12, _m21, _m22 = data[i+1]
                 __u = _u + k3_u
                 __w = _w + k3_w
-                k4_u, k4_w = self.__compute_k(__u, __w, _rho, _pitch, _FBg, _m11, _m12, _m21, _m22, h)
+                k4_u, k4_w = self.__compute_k(__u, __w, _rho, _pitch, _FBg, _m11, _m12, _m21, _m22, h, _Cd0)
                 
                 # Euler
                 #u[i+1] = _u + k1_u
@@ -713,14 +735,22 @@ class DynamicGliderModel(ModelParameters, GliderModel):
         rho = np.interp(ti, tm, rho)
         Vbp = np.interp(ti, tm, Vbp)
         dhdt = np.interp(ti, tm, dhdt)
-        
-        FB, Fg = self.compute_FB_and_Fg(pressure, rho, Vbp)
+        # if model coefficients are callable, assume they are interpolating functions
+        mg = Vg = Cd0 = None
+        if callable(self.mg):
+            mg = self.mg(ti)
+        if callable(self.Vg):
+            Vg = self.Vg(ti)
+        if callable(self.Cd0):
+            Cd0 = self.Cd0(ti)
+            
+        FB, Fg = self.compute_FB_and_Fg(pressure, rho, Vbp, mg, Vg)
         M = self.compute_inverted_mass_matrix(pitch)
 
         u = np.zeros_like(FB)
         w = np.zeros_like(FB)
         threshold = self.max_depth_considered_surface * 1e4 # in Pa.
-        self.RK4(h, M, FB-Fg, pitch, rho, pressure<threshold, u, w)
+        self.RK4(h, M, FB-Fg, pitch, rho, pressure<threshold, Cd0, u, w)
 
         gamma = np.arctan2(w, u)
         alpha = gamma - pitch
