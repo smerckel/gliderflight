@@ -2,4 +2,4 @@ numpy>=1.0.0
 scipy>=1.0.0
 gsw>=3.2.0
 dbdreader>=0.3.8
-matplotlib>2.0.0
+matplotlib>=2.0.0
