@@ -179,4 +179,9 @@ How to cite
 When you publish results that were obtained with this software, please use the
 following citation: XXXXXXXXXXXX
 
+Copyright information
+---------------------
+Copyright (c) 2018 Helmholtz Zentrum Geesthacht, Germany
+                   Lucas Merckelbach, lucas.merckelbach@hzg.de
 
+Software is licensed under the MIT licence.

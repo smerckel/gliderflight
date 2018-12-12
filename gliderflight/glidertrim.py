@@ -1,3 +1,6 @@
+#Copyright (c) 2018 Helmholtz Zentrum Geesthacht, Germany
+#                   Lucas Merckelbach, lucas.merckelbach@hzg.de
+
 import configparser
 import glob
 import os
