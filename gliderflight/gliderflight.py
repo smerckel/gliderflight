@@ -919,7 +919,8 @@ class Calibrate(object):
         -----
         A mask is automatically created (including all data) when this method is called.
         '''
-        dhdt = dhdt or self.compute_dhdt(time, pressure)
+        if dhdt is None:
+            dhdt = self.compute_dhdt(time, pressure)
         self.input_data = dict(time=time ,pressure=pressure, pitch=pitch, buoyancy_change=buoyancy_change,
                                density=density, dhdt=dhdt, u_relative=u_relative, w_relative=w_relative,
                                U_relative=U_relative)
