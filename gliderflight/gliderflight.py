@@ -469,7 +469,7 @@ class SteadyStateGliderModel(ModelParameters, GliderModel):
         U = Usquared**0.5
         return alpha, U
 
-    def solve(self, data):
+    def solve(self, data=None):
         ''' Solve the model
 
         Solves the flight model.
@@ -499,6 +499,9 @@ class SteadyStateGliderModel(ModelParameters, GliderModel):
         >>> gm.solve(data)
         >>> plot(gm.U)
         '''
+        if data is None:
+            data = self.input_data
+            
         pitch = data['pitch']
         rho = data['density']
         try:
@@ -762,14 +765,14 @@ class DynamicGliderModel(ModelParameters, GliderModel):
         wr = -np.sin(pitch)*u + np.cos(pitch)*w
         return Modelresult(ti, u, w, Umag, alpha, pitch, dhdt-w)
 
-    def solve(self, data):
+    def solve(self, data=None):
         ''' Solve the model
 
         Solves the flight model.
 
         Parameters
         ----------
-        data : dict
+        data : dict or None
             environment data (see Notes)
         
         Returns
@@ -792,6 +795,9 @@ class DynamicGliderModel(ModelParameters, GliderModel):
         >>> plot(dm.U)
         '''
 
+        if data is None:
+            data = self.input_data
+            
         pitch = data['pitch']
         try:
             dhdt = data['dhdt']
