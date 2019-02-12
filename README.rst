@@ -29,7 +29,9 @@ directly with additional sensor, such as an electromagnetic current
 meter or mounted acoustic Doppler current profiler, but often gliders
 are not equipped with additional velocity sensors. Alternatively, a
 glider flight model can be used to estimate the speed through
-water. Such a model is described in a paper XXXXXXXXXX. This Python
+water. Such a model is described in the paper *A dynamic flight model
+for Slocum gliders and implications for turbulence microstructure
+measurements* [merckelbach2019]_. This Python
 model implements the steady-state and dynamic glider flight models,
 described therein.
 
@@ -177,7 +179,16 @@ An example to calibrate a model::
 How to cite
 -----------
 When you publish results that were obtained with this software, please use the
-following citation: XXXXXXXXXXXX
+following citation:
+
+|   Merckelbach, L., A. Berger, G. Krahmann, M. Dengler, and J. Carpenter, 2019: A
+|            dynamic flight model for Slocum gliders and implications for turbulence
+|            microstructure measurements. J. Atmos. Oceanic Technol.
+|            doi:10.1175/JTECH-D-18-0168.1.
+
+
+
+
 
 Copyright information
 ---------------------
@@ -185,3 +196,10 @@ Copyright (c) 2018 Helmholtz Zentrum Geesthacht, Germany
                    Lucas Merckelbach, lucas.merckelbach@hzg.de
 
 Software is licensed under the MIT licence.
+
+References
+----------
+.. [merckelbach2019] Merckelbach, L., A. Berger, G. Krahmann, M. Dengler, and J. Carpenter, 2019: A
+   dynamic flight model for Slocum gliders and implications for
+   turbulence microstructure measurements. J. Atmos. Oceanic
+   Technol. doi:10.1175/JTECH-D-18-0168.1, in press

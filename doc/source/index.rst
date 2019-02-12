@@ -6,7 +6,7 @@
 Welcome to GliderFlight's documentation!
 ========================================
 
-This manual covers the use of the Python module **GLiderFlight**.
+This manual covers the use of the Python module **GliderFlight**.
 
 
 **GliderFlight** is written in Python3, and is released as open source
