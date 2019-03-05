@@ -183,16 +183,13 @@ following citation:
 
 |   Merckelbach, L., A. Berger, G. Krahmann, M. Dengler, and J. Carpenter, 2019: A
 |            dynamic flight model for Slocum gliders and implications for turbulence
-|            microstructure measurements. J. Atmos. Oceanic Technol.
-|            doi:10.1175/JTECH-D-18-0168.1.
-
-
-
+|            microstructure measurements. J. Atmos. Oceanic Technol., 36(2),
+|            281-296, doi:10.1175/JTECH-D-18-0168.1.
 
 
 Copyright information
 ---------------------
-Copyright (c) 2018 Helmholtz Zentrum Geesthacht, Germany
+Copyright (c) 2018, 2019 Helmholtz Zentrum Geesthacht, Germany
                    Lucas Merckelbach, lucas.merckelbach@hzg.de
 
 Software is licensed under the MIT licence.
@@ -202,4 +199,4 @@ References
 .. [merckelbach2019] Merckelbach, L., A. Berger, G. Krahmann, M. Dengler, and J. Carpenter, 2019: A
    dynamic flight model for Slocum gliders and implications for
    turbulence microstructure measurements. J. Atmos. Oceanic
-   Technol. doi:10.1175/JTECH-D-18-0168.1, in press
+   Technol. 36(2), 281-296, doi:10.1175/JTECH-D-18-0168.1
