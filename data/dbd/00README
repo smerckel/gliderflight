@@ -1,0 +1,7 @@
+This directory contains a number of raw dbd/ebd data used to create the dataset
+used in this paper. For the dbdreader module to be able to read these files,
+the cache files *.cac should be copied to the .dbdreader directory in the home 
+directory ($HOME/.dbdreader on linux).
+
+lucas.merckelbach@hzg.de 
+20/3/19
