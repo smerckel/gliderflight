@@ -10,6 +10,7 @@ from scipy.optimize import fsolve, fmin as fminimize
 
 Modelresult = namedtuple("Modelresult", "t u w U alpha pitch ww")
 
+REFERENCE_VALUES = dict(Cd0=0.15, Vg=62, epsilon=5e-10, ah=3.8, mg=65)
 
 class ModelParameterError(BaseException):
     pass
@@ -53,7 +54,7 @@ class ModelParameters(object):
             self.__dict__[i]=None
         self.__aoa_parameter_changed=True
         #set some default values for "constant" parameters
-        self.define(AR=7,Omega=43*np.pi/180.,S=0.1,ah=3.8,eOsborne=0.8,Cd1_hull=9.7,epsilon=5)
+        self.define(AR=7,Omega=43*np.pi/180.,S=0.1,ah=3.8,eOsborne=0.8,Cd1_hull=9.7,epsilon=5e-10)
         # note epsilon is given without e-10 factor.
         self.modelresult = None
         
@@ -272,7 +273,7 @@ class GliderModel(object):
             Vg = self.Vg
         g=self.G
         #
-        FB=g*rho*(Vg*(1.-self.epsilon*1e-10*pressure) + Vbp)
+        FB=g*rho*(Vg*(1.-self.epsilon*pressure) + Vbp)
         Fg=mg*g
         return FB, Fg
         
@@ -409,10 +410,21 @@ class SteadyStateGliderModel(ModelParameters, GliderModel):
         ''' Resets angle of attack interpolation function '''
         self.ifun = None
 
-    def model_fun(self, x,  m_pitch):
-        ''' implicit function of the angle of attack '''
+    def model_fun(self, x,  m_pitch, Cd0):
+        ''' implicit function of the angle of attack 
+        
+        Parameters
+        ----------
+        m_pitch : float or array of floats
+             measured pitch
+        Cd0 : float
+
+        Cd0 is a parameter that might change during a mission, so self.Cd0 is set as an
+        array, this function needs to take Cd0 as a float at the appropriate time. It is
+        the responsibility of the caller function to pass the value of Cd0.
+        '''
         alpha = x
-        equation = (self.Cd0 +self.Cd1*alpha**2)/((self.ah+self.aw)*np.tan(alpha+m_pitch))-alpha
+        equation = (Cd0 +self.Cd1*alpha**2)/((self.ah+self.aw)*np.tan(alpha+m_pitch))-alpha
         return equation
 
         
@@ -437,13 +449,29 @@ class SteadyStateGliderModel(ModelParameters, GliderModel):
         depends, changes, the interpolating function is recomputed. Whether any of these parameters
         is changed, is tracked by the ModelParameters.define() method. 
         '''
+        if isinstance(self.Cd0, float):
+            # we can do all in one go, making a table first to speed up things.
+            return self.__solve_angle_of_attack_for_constant_parameters(pitch)
+        else:
+            print("Computing angle of attack for time variable drag coefficient...")
+            aoa = np.zeros_like(pitch)
+            for i, (_pitch, _Cd0) in enumerate(zip(pitch,self.Cd0)):
+                s = np.sign(_pitch)
+                __pitch = np.abs(_pitch)
+                if __pitch < 0.157: # 9 degrees
+                    aoa[i] = 0
+                else:
+                    aoa[i:i+1] = s * fsolve(self.model_fun, __pitch/50, args=(__pitch, _Cd0), full_output=0)
+            print("Done")
+            return aoa
         
+    def __solve_angle_of_attack_for_constant_parameters(self, pitch):
         if self.has_aoa_parameter_changed() or self.ifun is None:
             aoas = np.zeros_like(self.pitch_i)
             for i, _pitch in enumerate(self.pitch_i):
                 tmp = fsolve(self.model_fun,
                              _pitch/50,
-                             args=(_pitch,),
+                             args=(_pitch,self.Cd0),
                              full_output=1)
                 num_result, result, err, mesg = tmp
                 aoas[i] = num_result
@@ -700,6 +728,7 @@ class DynamicGliderModel(ModelParameters, GliderModel):
                 #w[i+1] = _w + k1_w
                 u[i+1] = _u + (k1_u + 2*k2_u + 2*k3_u + k4_u)/6
                 w[i+1] = _w + (k1_w + 2*k2_w + 2*k3_w + k4_w)/6
+        return u, w
                 
                     
     def compute_inverted_mass_matrix(self, pitch):
@@ -720,6 +749,17 @@ class DynamicGliderModel(ModelParameters, GliderModel):
         M22 = (-(m22-m11)*C2 + m22 + self.mg) / denom
         return M11, M12, M21, M22
 
+    def RK4_parallel(self, h, M, FBg, pitch, rho, at_surface, Cd0, u, w, nproc=24):
+        N = len(u)
+        n = N//nproc
+        _u = np.zeros_like(u)
+        _w = np.zeros_like(u)
+        for p in range(nproc):
+            print(f"Process {p}")
+            s = slice(p*n, (p+1)*n)
+            _M = (m[s] for m in M)
+            _u[s], _w[s] = self.RK4(h, _M, FBg[s], pitch[s], rho[s], at_surface[s], Cd0, u[s], w[s])
+           
     
     def integrate(self, data, dt=None):
         ''' integrate system
@@ -757,6 +797,7 @@ class DynamicGliderModel(ModelParameters, GliderModel):
         w = np.zeros_like(FB)
         threshold = self.max_depth_considered_surface * 1e4 # in Pa.
         self.RK4(h, M, FB-Fg, pitch, rho, pressure<threshold, Cd0, u, w)
+        #self.RK4_parallel(h, M, FB-Fg, pitch, rho, pressure<threshold, Cd0, u, w, nproc=24)
 
         gamma = np.arctan2(w, u)
         alpha = gamma - pitch
@@ -951,7 +992,7 @@ class Calibrate(object):
         weights : None or array-like of float
             weights of constraints. If more than one constraint is provided, weights sets their relative importance.
         verbose : bool
-            print intermediate results during optimising
+            print intermediate results during optimising if set True
         
         Returns
         -------
@@ -959,33 +1000,42 @@ class Calibrate(object):
             RMS value of exposed measurements (not masked)
         '''
         # set the data
-        kwds=dict([(_p,_x) for _p,_x in zip(parameters,x)])
+        kwds=dict([(_p,_x*REFERENCE_VALUES[_p]) for _p,_x in zip(parameters,x)])
         self.define(**kwds) # ensures that aoa is reinitialised if necessary
         self.solve(self.input_data)
         U = self.modelresult.U
         alpha = self.modelresult.alpha
-        weights = weights or np.ones_like(constraints, float)/len(constraints)
+
+        if not isinstance(weights, np.ndarray):
+            weights = weights or np.ones_like(constraints, float)/len(constraints)
 
         w_mod = U*np.sin(self.input_data['pitch']+alpha)
         u_mod = U*np.cos(self.input_data['pitch']+alpha)
 
         error = 0
-        
-        for constraint, weight in zip(constraints, weights):
-            if constraint == 'dhdt':
-                error += weight * (w_mod - self.input_data['dhdt'])**2
-            elif constraint == 'w_relative':
-                error += weight * (w_mod - self.input_data['w_relative'])**2
-            elif constraint == 'u_relative':
-                error += weight * (u_mod - self.input_data['u_relative'])**2
-            elif constraint == 'U_relative':
-                error += weight * (U - self.input_data['U_relative'])**2
+
+        if len(constraints) == len(weights):
+            # legacy formulation
+            for constraint, weight in zip(constraints, weights):
+                if constraint == 'dhdt':
+                    error += weight * (w_mod - self.input_data['dhdt'])**2
+                elif constraint == 'w_relative':
+                    error += weight * (w_mod - self.input_data['w_relative'])**2
+                elif constraint == 'u_relative':
+                    error += weight * (u_mod - self.input_data['u_relative'])**2
+                elif constraint == 'U_relative':
+                    error += weight * (U - self.input_data['U_relative'])**2
+                else:
+                    raise NotImplementedError()
+        else:
+            if constraints[0] == 'dhdt' and len(constraints)==1:
+                error += weights * (w_mod - self.input_data['dhdt'])**2
             else:
                 raise NotImplementedError()
         error = error.compress(~self.mask)
         mse = np.nanmean(error)
         if verbose:
-            s="  ".join(["{:s}={:.4f}".format(k,v) for k,v in kwds.items()])
+            s="  ".join(["{:s}={:.4g}".format(k,v) for k,v in kwds.items()])
             print("Error: {:.7e}  -  {}".format(mse, s))
         return mse
 
@@ -1033,7 +1083,7 @@ class Calibrate(object):
         components that are to be used to calibrate the model have to be set specifically.
         '''
         constraints = self.__ensure_iterable(constraints)
-        x0=[self.__dict__[i] for i in p]
+        x0=[self.__dict__[i]/REFERENCE_VALUES[i] for i in p] # scale the parameters to order 1
         args = (p, constraints, weights, verbose)
         R=fminimize(self.cost_function,x0,args=args,disp=False)
         rv=dict([(k,v) for k,v in zip(p,R)])
