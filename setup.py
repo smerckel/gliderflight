@@ -26,6 +26,7 @@ setup(
     version=VERSION,
     description='Flight model for Slocum ocean gliders',
     long_description=long_description,
+    long_description_content_type="text/x-rst",
     url='https://github.com/smerckel/gliderflight',
     author='Lucas Merckelbach',
     author_email='lucas.merckelbach@hzg.de',
