@@ -34,7 +34,8 @@ See also the file requirements.txt in the root directory.
 
 PyPi
 ----
-In due time, the module will also made available on PyPi, so that it
-can be installed using pip.
+Glider flight is available from pypi ::
+
+  pip install gliderflight
 
 
