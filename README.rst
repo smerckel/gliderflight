@@ -39,8 +39,7 @@ Documentation
 -------------
 
 Documentation of this software package can be found at 
-http://dockserver0.hzg.de/software/gliderflight/index.html
-
+https://gliderflight.readthedocs.io/en/latest/
 Steady-state model
 ------------------
 
@@ -69,7 +68,7 @@ Using the depth-rate from the pressure sensor as only model
 constraint, the mass (or glider volume) and the parasite drag
 coefficient can be determined. To determine the lift angle coefficient
 requires an additional constraint that contains a horizontal velocity
-component. Details of this procedure are given in XXXXXX.
+component. Details of this procedure are given in [merckelbach2019]_.
 
 Dynamic model
 -------------
