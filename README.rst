@@ -1,3 +1,5 @@
+|PyPI version| |Docs badge| |License|
+
 GliderFlight for Slocum ocean gliders
 =====================================
 
@@ -200,3 +202,12 @@ References
    dynamic flight model for Slocum gliders and implications for
    turbulence microstructure measurements. J. Atmos. Oceanic
    Technol. 36(2), 281-296, doi:10.1175/JTECH-D-18-0168.1
+
+.. |PyPI version| image:: https://badgen.net/pypi/v/gliderflight
+   :target: https://pypi.org/project/gliderflight
+.. |Docs badge| image:: https://readthedocs.org/projects/dbdreader/badge/?version=latest
+   :target: https://gliderflight.readthedocs.io/en/latest/
+.. |License| image:: https://img.shields.io/badge/License-MIT-blue.svg
+   :target: https://mit-license.org/
+
+   

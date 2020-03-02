@@ -4,11 +4,12 @@ import codecs
 import os
 from setuptools import find_packages, setup
 
-import gliderflight
-
-# semantic versioning
-VERSION = gliderflight.__version__
-
+with open(os.path.join("gliderflight","__init__.py"), "r") as fh:
+    while True:
+        line = fh.readline()
+        if line.startswith("__version__"):
+            VERSION = line.split("=")[1].strip().replace('"','').replace("'",'')
+            break
 
 here = os.path.abspath(os.path.dirname(__file__))
 
@@ -25,11 +26,10 @@ setup(
     version=VERSION,
     description='Flight model for Slocum ocean gliders',
     long_description=long_description,
-    url='https://github.com/',
+    url='https://github.com/smerckel/gliderflight',
     author='Lucas Merckelbach',
     author_email='lucas.merckelbach@hzg.de',
     license='MIT',
-    #py_modules=['gliderflight'],
     packages=['gliderflight'],
     #packages=find_packages(where='.', exclude=['tests', 'docs'])
     classifiers=[
@@ -47,10 +47,4 @@ setup(
     include_package_data=True,
     entry_points = {'console_scripts':['glidertrim = gliderflight.glidertrim:main'],
                     'gui_scripts':[]}
-    #scripts=scripts,
 )
-# how to provide scripts etct
-#      py_modules = ['fastachar'],
-#      entry_points = {'console_scripts':[],#['fastachar_gui = fastachar_gui:main
-#                      'gui_scripts':['fastachar = fastachar:main']
-#                      },
