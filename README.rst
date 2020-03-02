@@ -40,6 +40,7 @@ Documentation
 
 Documentation of this software package can be found at 
 https://gliderflight.readthedocs.io/en/latest/
+
 Steady-state model
 ------------------
 
