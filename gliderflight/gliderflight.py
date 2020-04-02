@@ -1086,7 +1086,7 @@ class Calibrate(object):
         x0=[self.__dict__[i]/REFERENCE_VALUES[i] for i in p] # scale the parameters to order 1
         args = (p, constraints, weights, verbose)
         R=fminimize(self.cost_function,x0,args=args,disp=False)
-        rv=dict([(k,v) for k,v in zip(p,R)])
+        rv=dict([(k,v*REFERENCE_VALUES[k]) for k,v in zip(p,R)])
         return rv
 
     def __ensure_booltype(self, mask):
