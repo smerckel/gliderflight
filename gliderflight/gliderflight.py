@@ -6,7 +6,10 @@ from collections import namedtuple
 import numpy as np
 from scipy.interpolate import interp1d
 from scipy.optimize import fsolve, fmin as fminimize
-
+from scipy.integrate import solve_ivp, RK45
+from functools import partial
+import concurrent.futures
+from multiprocessing import cpu_count
 
 Modelresult = namedtuple("Modelresult", "t u w U alpha pitch ww")
 
@@ -749,19 +752,35 @@ class DynamicGliderModel(ModelParameters, GliderModel):
         M22 = (-(m22-m11)*C2 + m22 + self.mg) / denom
         return M11, M12, M21, M22
 
-    def RK4_parallel(self, h, M, FBg, pitch, rho, at_surface, Cd0, u, w, nproc=24):
-        N = len(u)
-        n = N//nproc
-        _u = np.zeros_like(u)
-        _w = np.zeros_like(u)
-        for p in range(nproc):
-            print(f"Process {p}")
-            s = slice(p*n, (p+1)*n)
-            _M = (m[s] for m in M)
-            _u[s], _w[s] = self.RK4(h, _M, FBg[s], pitch[s], rho[s], at_surface[s], Cd0, u[s], w[s])
-           
+    def _compute_time_intervals(self, ncpu, tm):
+        dt = tm.ptp()/ncpu
+        intervals = []
+        for i in range(ncpu):
+            t0=tm[0]+i*dt
+            t1=tm[0]+(i+1)*dt
+            tm_eval = tm.compress(np.logical_and(tm>=t0, tm<=t1))
+            intervals.append((t0, t1, tm_eval))
+        return intervals
     
-    def integrate(self, data, dt=None):
+    def _integrate_rk45_fun(self, t, uw, rho_fun=None, pitch_fun=None, FBg_fun=None,
+                            m11_fun=None, m12_fun=None, m21_fun=None,
+                            m22_fun=None, Cd0_fun=None, at_surface_fun=None):
+        u, w= uw
+        if at_surface_fun(t):
+            uw1=np.array([0.0, 0.0])
+        else:
+            U = (u**2 + w**2)**(0.5)
+            _pitch = pitch_fun(t)
+            alpha = np.arctan2(w, u) - _pitch
+            q, L, D = self.compute_lift_and_drag(alpha, U, rho_fun(t), Cd0_fun(t))
+            Fx = -np.cos(_pitch + alpha) * D + np.sin(_pitch + alpha)*L
+            Fy = -np.cos(_pitch + alpha) * L - np.sin(_pitch + alpha)*D + FBg_fun(t)
+            uw1 = np.array([(m11_fun(t)*Fx + m12_fun(t)*Fy),
+                            (m21_fun(t)*Fx + m22_fun(t)*Fy)])
+        return uw1
+
+        
+    def integrate(self, data):
         ''' integrate system
 
         not to be called directly
@@ -773,38 +792,70 @@ class DynamicGliderModel(ModelParameters, GliderModel):
         m_de_oil_vol = data['buoyancy_change']
         dhdt = data['dhdt']
         pressure, Vbp = self.convert_pressure_Vbp_to_SI(m_water_pressure, m_de_oil_vol)
-
-        h = dt or 2.
-        ti = np.arange(tm.min(), tm.max()+h, h)
-        pitch = np.interp(ti, tm, pitch)
-        pressure = np.interp(ti, tm, pressure)
-        rho = np.interp(ti, tm, rho)
-        Vbp = np.interp(ti, tm, Vbp)
-        dhdt = np.interp(ti, tm, dhdt)
-        # if model coefficients are callable, assume they are interpolating functions
         mg = Vg = Cd0 = None
         if callable(self.mg):
             mg = self.mg(ti)
+        else:
+            mg = self.mg
         if callable(self.Vg):
             Vg = self.Vg(ti)
-        if callable(self.Cd0):
+        else:
+            Vg = self.Vg
+        if callable(self.Cd0): # we need to evaluate Cd inside the
+                               # force balance and depends on the
+                               # unknown u,w vector. So we need to
+                               # make an interpolating function
+                               # later. Make sure Cd0 is length tm.
             Cd0 = self.Cd0(ti)
-            
+        else:
+            Cd0 = self.Cd0 * np.ones_like(tm)
+
         FB, Fg = self.compute_FB_and_Fg(pressure, rho, Vbp, mg, Vg)
         M = self.compute_inverted_mass_matrix(pitch)
-
-        u = np.zeros_like(FB)
-        w = np.zeros_like(FB)
+        FBg = FB-Fg
         threshold = self.max_depth_considered_surface * 1e4 # in Pa.
-        self.RK4(h, M, FB-Fg, pitch, rho, pressure<threshold, Cd0, u, w)
-        #self.RK4_parallel(h, M, FB-Fg, pitch, rho, pressure<threshold, Cd0, u, w, nproc=24)
+        at_surface = pressure<threshold
+        
+        # create interpolating functions of the variables we need
+        options = dict(bounds_error=False, fill_value="extrapolate")
+        m11_fun = interp1d(tm, M[0], **options)
+        m12_fun = interp1d(tm, M[1], **options)
+        m21_fun = interp1d(tm, M[2], **options)
+        m22_fun = interp1d(tm, M[3], **options)
+        pitch_fun = interp1d(tm, pitch, **options)
+        rho_fun = interp1d(tm, rho, **options)
+        FBg_fun = interp1d(tm, FBg, **options)
+        at_surface_fun = interp1d(tm, at_surface, **options)
+        Cd0_fun = interp1d(tm, Cd0, **options)
+
+        # function to integrate:
+        arg_funs = dict(rho_fun=rho_fun, pitch_fun=pitch_fun,
+                        FBg_fun = FBg_fun, m11_fun=m11_fun, m12_fun=m12_fun, m21_fun=m21_fun,
+                        m22_fun=m22_fun, Cd0_fun=Cd0_fun, at_surface_fun=at_surface_fun)
+        ncpu=cpu_count()
+        intervals = self._compute_time_intervals(ncpu, tm)
+        
+        with concurrent.futures.ProcessPoolExecutor(ncpu) as p:
+            results = p.map(partial(self.process_fun, **arg_funs), intervals)
+
+        u, w = self.assemble_results(tm, results)
 
         gamma = np.arctan2(w, u)
         alpha = gamma - pitch
         Umag = (u**2 + w**2)**(0.5)
         ur = np.cos(pitch)*u + np.sin(pitch)*w
         wr = -np.sin(pitch)*u + np.cos(pitch)*w
-        return Modelresult(ti, u, w, Umag, alpha, pitch, dhdt-w)
+        return Modelresult(tm, u, w, Umag, alpha, pitch, dhdt-w)
+
+    def assemble_results(self, tm, results):
+        y = np.hstack([r.y for r in results])
+        return y
+        
+    def process_fun(self, interval, **arg_funs):
+        t0, t1, tm = interval
+        fun = partial(self._integrate_rk45_fun, **arg_funs)
+        result = solve_ivp(fun, (t0, t1), y0=np.array([0.,0.0]), t_eval=tm, first_step=0.5)
+        return result
 
     def solve(self, data=None):
         ''' Solve the model
@@ -846,7 +897,7 @@ class DynamicGliderModel(ModelParameters, GliderModel):
             dhdt = self.compute_dhdt(data['time'], data['pressure'])
             data['dhdt'] = dhdt
 
-        integration_result = self.integrate(data, self.dt)
+        integration_result = self.integrate(data)
         self.modelresult = Modelresult(*[np.interp(data['time'],
                                                    integration_result.t, v) for v in integration_result])
         return self.modelresult
