@@ -115,18 +115,15 @@ class Model(object):
             buoyancy_variable='m_de_oil_vol'
         else:
             raise ValueError('Unknown buoyancy engine. Accepted values: (shallow|deep)')
-        dbd = dbdreader.MultiDBD(filenames=fns, include_paired=True)
-        tmp = dbd.get_sync("sci_ctd41cp_timestamp",["sci_water_pressure",
-                                                    "sci_water_cond",
-                                                    "sci_water_temp",
-                                                    "m_pitch",
-                                                    "m_battpos",
-                                                    buoyancy_variable])
-        _, tctd, P, C, T, pitch, battpos, buoyancy_change = tmp.compress(tmp[3]>0.01, axis=1)
+        dbd = dbdreader.MultiDBD(filenames=fns, complement_files = True)
+        tmp = dbd.get_CTD_sync("m_pitch", "m_battpos", buoyancy_variable)
+        
+        condition = np.logical_and(tmp[2]>0.01, np.isfinite(np.sum(tmp, axis=0)))
+        tctd, C, T, P, pitch, battpos, buoyancy_change = np.compress(condition, tmp, axis=1)
         SP = gsw.SP_from_C(C*10, T, P*10)
         SA = gsw.SA_from_SP(SP, P*10, settings['longitude'], settings['latitude'])
         density = gsw.rho_t_exact(SA, T, P*10)
-        
+
         #density = fast_gsw.rho(C*10, T, P*10, settings['longitude'], settings['latitude'])
 
         data = dict(time=tctd, pressure=P, pitch=pitch,
@@ -166,7 +163,7 @@ class Model(object):
         print()
         print("Drag coefficient Cd    : %f (-)"%(self.model.Cd0))
         print("Glider volume Vg       : %f (m^3)"%(self.model.Vg))
-        print("Glider compressibility : %f (*e-10)"%(self.model.epsilon))
+        print("Glider compressibility : %f (*e-10)"%(self.model.epsilon*1e10))
         print("Glider density         : %f (kg/m^3)"%((self.model.mg/self.model.Vg)))
         print("Weight change          : %f (g)"%((settings['target_density']-(self.model.mg/self.model.Vg))*self.model.Vg*1000.))
         #
@@ -197,12 +194,12 @@ class Model(object):
         ax[0].plot(mr.U, z, label='U_glider', color='C3')
         ax[1].plot(zi*0+settings['target_density'], zi, label='Target density')
         ax[1].plot(self.model.input_data['density'], z, label='Density')
-        rho_g = self.model.mg/(self.model.Vg*(1-self.model.epsilon*1e-10*Pi*1e5))
+        rho_g = self.model.mg/(self.model.Vg*(1-self.model.epsilon*Pi*1e5))
         ax[1].plot(rho_g, zi, label='Glider density', color='C2')
         for i in range(1, 5):
-            rho_g = (50e-3*i+self.model.mg)/(self.model.Vg*(1-self.model.epsilon*1e-10*Pi*1e5))
+            rho_g = (50e-3*i+self.model.mg)/(self.model.Vg*(1-self.model.epsilon*Pi*1e5))
             ax[1].plot(rho_g, zi, color='C2', ls='--', alpha=0.5)
-            rho_g = (-50e-3*i+self.model.mg)/(self.model.Vg*(1-self.model.epsilon*1e-10*Pi*1e5))
+            rho_g = (-50e-3*i+self.model.mg)/(self.model.Vg*(1-self.model.epsilon*Pi*1e5))
             ax[1].plot(rho_g, zi, color='C2', ls='--', alpha=0.5)
         ax[0].set_ylabel('Depth (m)')
         ax[0].set_xlabel('Velocity (m/s)')
@@ -225,3 +222,16 @@ def main():
     model.report(results, ui.settings)
     model.graphic_report(results, ui.settings)
     input("Press enter to exit")
+
+
+
+
+def test():
+    sys.argv.append("comet-nsb3201907")
+    sys.argv.append("/home/lucas/even/comet/comet-2019-203-05-011.dbd")
+    sys.argv.append("/home/lucas/even/comet/comet-2019-203-05-012.dbd")
+    sys.argv.append("/home/lucas/even/comet/comet-2019-203-05-013.dbd")
+    main()
+
+    
+    
