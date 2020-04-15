@@ -19,15 +19,14 @@ import gliderflight
 
 
 DEFAULTS = dict(target_density=1025, mg=65, Vg=65e-3, minlimitdepth=10, maxlimitdepth=30,
-                cond_a=1.0, cond_b=0., buoyancy_engine='shallow',latitude=54, longitude=8,
+                cond_a=1.0, cond_b=0., buoyancy_engine='shallow',
                 calibrate_epsilon='no')
 class UI(object):
     CONFIGFILE=os.path.join(os.environ['HOME'],'.glidertrimrc')    
-    FLOAT_OPTIONS = "target_density mg Vg minlimitdepth maxlimitdepth cond_a cond_b latitude longitude".split()
+    FLOAT_OPTIONS = "target_density mg Vg minlimitdepth maxlimitdepth cond_a cond_b".split()
     STR_OPTIONS = ["buoyancy_engine", "calibrate_epsilon"]
     UNITS = dict(mg="kg", Vg="m^3", minlimitdepth="m", maxlimitdepth="m", cond_a="m/S",
-                 cond_b="-", buoyancy_engine="shallow|deep", latitude='decimal deg',
-                 longitude='decimal deg', calibrate_epsilon='yes|no',
+                 cond_b="-", buoyancy_engine="shallow|deep", calibrate_epsilon='yes|no',
                  target_density='kg/m^3')
     
     def __init__(self):
@@ -117,15 +116,15 @@ class Model(object):
             raise ValueError('Unknown buoyancy engine. Accepted values: (shallow|deep)')
         dbd = dbdreader.MultiDBD(filenames=fns, complement_files = True)
         tmp = dbd.get_CTD_sync("m_pitch", "m_battpos", buoyancy_variable)
-        
+        (_,lat), (_,lon) = dbd.get("m_gps_lat", "m_gps_lon")
+        latitude = np.median(lat)
+        longitude = np.median(lon)
         condition = np.logical_and(tmp[2]>0.01, np.isfinite(np.sum(tmp, axis=0)))
         tctd, C, T, P, pitch, battpos, buoyancy_change = np.compress(condition, tmp, axis=1)
         SP = gsw.SP_from_C(C*10, T, P*10)
-        SA = gsw.SA_from_SP(SP, P*10, settings['longitude'], settings['latitude'])
+        SA = gsw.SA_from_SP(SP, P*10, longitude, latitude)
         density = gsw.rho_t_exact(SA, T, P*10)
-
-        #density = fast_gsw.rho(C*10, T, P*10, settings['longitude'], settings['latitude'])
-
+        #density = fast_gsw.rho(C*10, T, P*10, longitude, latitude)
         data = dict(time=tctd, pressure=P, pitch=pitch,
                     buoyancy_change=buoyancy_change, battpos=battpos, density=density)
         self.model.input_data = data
@@ -228,9 +227,10 @@ def main():
 
 def test():
     sys.argv.append("comet-nsb3201907")
-    sys.argv.append("/home/lucas/even/comet/comet-2019-203-05-011.dbd")
-    sys.argv.append("/home/lucas/even/comet/comet-2019-203-05-012.dbd")
-    sys.argv.append("/home/lucas/even/comet/comet-2019-203-05-013.dbd")
+    import glob
+    fns = glob.glob("/home/lucas/even/trim/comet*.dbd")
+    for fn in fns:
+        sys.argv.append(fn)
     main()
 
     
