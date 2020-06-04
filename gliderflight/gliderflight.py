@@ -1,7 +1,7 @@
-#Copyright (c) 2018 Helmholtz Zentrum Geesthacht, Germany
+#Copyright (c) 2018-2020 Helmholtz Zentrum Geesthacht, Germany
 #                   Lucas Merckelbach, lucas.merckelbach@hzg.de
 
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 
 import numpy as np
 from scipy.interpolate import interp1d
@@ -11,9 +11,26 @@ from functools import partial
 import concurrent.futures
 from multiprocessing import cpu_count
 
+import warnings
+warnings.filterwarnings('error')
+from logging import getLogger, INFO, basicConfig
+
+logger = getLogger()
+basicConfig(level=INFO)
+
 Modelresult = namedtuple("Modelresult", "t u w U alpha pitch ww")
 
 REFERENCE_VALUES = dict(Cd0=0.15, Vg=62, epsilon=5e-10, ah=3.8, mg=65)
+UNITS = defaultdict(lambda  : "-", Cd1="s^{-2}",S="m^2", mg="kg",
+                    Vg="m^3", Cd1_hull="s^{-2}", aw = "s^{-1}", ah="s^{-1}")
+
+DEBUG_PARALLEL_EXECUTION = False # Set to True to run the parallel
+                                 # jobs sequentially. This is useful
+                                 # when the intergration does not
+                                 # complete for some reason and throws
+                                 # an error. In parallel exectution it
+                                 # is not possible to inspect the
+                                 # trace.
 
 class ModelParameterError(BaseException):
     pass
@@ -49,6 +66,7 @@ class ModelParameters(object):
     def __init__(self, parameterised_parameters_dict):
         
         self.parameters = 'Cd0 Cd1 S eOsborne AR Omega mg epsilon Vg Cd1_hull aw ah'.split()
+        self.parameter_units = dict([(k,UNITS[k]) for k in self.parameters]) 
         self.parametersAoa = 'Cd0 Cd1 eOsborne AR Omega S Cd1_hull ah aw'.split()
         self.parameterised_parameters = parameterised_parameters_dict
         self._parameterised_parameters = list(self.parameterised_parameters)
@@ -344,6 +362,20 @@ class GliderModel(object):
             i = self.modelresult._fields.index(p)
             return self.modelresult[i]
 
+    def ensure_monotonicity(self, data, weights=None):
+        # remove any entries in data that have duplicate time stamps.
+        t = data['time']
+        condition = np.ones(t.shape, int)
+        condition[1:] = np.diff(t)!=0
+        for k, v in data.items():
+            if not v is None:
+                data[k] = v.compress(condition)
+        if not self.mask is None:
+            self.mask = self.mask.compress(condition)
+        if not weights is None:
+            weights = weights.compress(condition)
+        return data, weights
+    
     @property        
     def t(self):
         ''' time (s)'''
@@ -532,7 +564,6 @@ class SteadyStateGliderModel(ModelParameters, GliderModel):
         '''
         if data is None:
             data = self.input_data
-            
         pitch = data['pitch']
         rho = data['density']
         try:
@@ -577,8 +608,9 @@ class DynamicGliderModel(ModelParameters, GliderModel):
         angle (rad) up to which no lift will be generated (stalling angle)
     max_depth_considered_surface : float
         depth as reported by the pressure sensor which is considered the surface (u=w=0)
-
-
+    max_CPUs : int
+        maximum number of CPUs to use (clips at system availabel CPUs)
+    
 
     The only method provided by this class that is of interest to the user is solve().
     The input to solve is a dictionary with time, pressure, pitch, buoyancy change density.
@@ -608,7 +640,7 @@ class DynamicGliderModel(ModelParameters, GliderModel):
     '''
 
     def __init__(self, dt=None, rho0=None, k1=0.20, k2=0.92, alpha_linear=90, alpha_stall=90,
-                 max_depth_considered_surface=0.5):
+                 max_depth_considered_surface=0.5, max_CPUs=None):
         ''' Constructor
 
         :param dt: time step (s)
@@ -618,6 +650,7 @@ class DynamicGliderModel(ModelParameters, GliderModel):
         :param alpha_linear: angle in degree, up to where lift force is linear with angle of attack
         :param alpha_stall: angle in degree where stall occurs
         :param max_depth_considered_surface: depths shallower than this are considered at the surface and (u,v)=0
+        :param max_CPUs: maximimum number of CPUs to use for integrating. Clips at system available number of CPUs.
         :type dt: float
         :type rho0: float
         :type k1: float
@@ -625,6 +658,7 @@ class DynamicGliderModel(ModelParameters, GliderModel):
         :type alpha_linear: float
         :type alpha_stall: float
         :type max_depth_considered_surface: float
+        :type max_CPUs: int
 
         '''
         ModelParameters.__init__(self, dict(aw=self.awEstimate, Cd1=self.cd1Estimate))
@@ -635,6 +669,7 @@ class DynamicGliderModel(ModelParameters, GliderModel):
         self.alpha_stall = 90*np.pi/180 # 90 degrees: disable
         self.dt = dt
         self.max_depth_considered_surface = max_depth_considered_surface
+        self.max_CPUs = max_CPUs
         
     def stall_factor(self, alpha):
         alpha_abs = abs(alpha)
@@ -752,14 +787,17 @@ class DynamicGliderModel(ModelParameters, GliderModel):
         M22 = (-(m22-m11)*C2 + m22 + self.mg) / denom
         return M11, M12, M21, M22
 
-    def _compute_time_intervals(self, ncpu, tm):
+    def _compute_time_intervals(self, ncpu, tm, lead_time=300):
         dt = tm.ptp()/ncpu
         intervals = []
         for i in range(ncpu):
             t0=tm[0]+i*dt
             t1=tm[0]+(i+1)*dt
             tm_eval = tm.compress(np.logical_and(tm>=t0, tm<=t1))
-            intervals.append((t0, t1, tm_eval))
+            if i>0:
+                t0-=lead_time
+            if len(tm_eval) > 0: # if zero we have no data to evaluate, integration crashes.
+                intervals.append((t0, t1, tm_eval))
         return intervals
     
     def _integrate_rk45_fun(self, t, uw, rho_fun=None, pitch_fun=None, FBg_fun=None,
@@ -832,14 +870,23 @@ class DynamicGliderModel(ModelParameters, GliderModel):
         arg_funs = dict(rho_fun=rho_fun, pitch_fun=pitch_fun,
                         FBg_fun = FBg_fun, m11_fun=m11_fun, m12_fun=m12_fun, m21_fun=m21_fun,
                         m22_fun=m22_fun, Cd0_fun=Cd0_fun, at_surface_fun=at_surface_fun)
-        ncpu=cpu_count()
-        intervals = self._compute_time_intervals(ncpu, tm)
         
-        with concurrent.futures.ProcessPoolExecutor(ncpu) as p:
-            results = p.map(partial(self.process_fun, **arg_funs), intervals)
-
-        u, w = self.assemble_results(tm, results)
-
+        ncpu = cpu_count()
+        if not self.max_CPUs is None:
+            ncpu = min(ncpu, self.max_CPUs)
+        intervals = [(k, interval) for k, interval in enumerate(self._compute_time_intervals(ncpu, tm, lead_time=300))]
+        
+        if not DEBUG_PARALLEL_EXECUTION:
+            logger.info(f"Parallel execution using {len(intervals)} processes.")
+            with concurrent.futures.ProcessPoolExecutor(ncpu) as p:
+                results = p.map(partial(self.process_fun, **arg_funs), intervals)
+            results = list(results)
+        else:
+            logger.info("Forcing serial execution.")
+            results=[]
+            for interval in intervals:
+                results.append(self.process_fun(interval, **arg_funs))
+        u, w = self.assemble_results(results, intervals)
         gamma = np.arctan2(w, u)
         alpha = gamma - pitch
         Umag = (u**2 + w**2)**(0.5)
@@ -847,14 +894,27 @@ class DynamicGliderModel(ModelParameters, GliderModel):
         wr = -np.sin(pitch)*u + np.cos(pitch)*w
         return Modelresult(tm, u, w, Umag, alpha, pitch, dhdt-w)
 
-    def assemble_results(self, tm, results):
-        y = np.hstack([r.y for r in results])
-        return y
+    def assemble_results(self, results, intervals):
+        success = True
+        y = []
+        for r in results:
+            if r is None: # integration failed.
+                success = False
+                continue 
+            y.append(r.y)
+            success &= r.success
+        u, w = np.hstack(y)
+        return u, w
         
     def process_fun(self, interval, **arg_funs):
-        t0, t1, tm = interval
+        k, (t0, t1, tm) = interval
         fun = partial(self._integrate_rk45_fun, **arg_funs)
-        result = solve_ivp(fun, (t0, t1), y0=np.array([0.,0.0]), t_eval=tm, first_step=0.5)
+        try:
+            result = solve_ivp(fun, (t0, t1), y0=np.array([0.,0.0]), t_eval=tm, first_step=0.25)
+        except ValueError as e:
+            m = f"Solving for interval {k} failed.\nInterval from {t0:.1f} - {t1:.1f}."
+            logger.error(m)
+            result = None
         return result
 
     def solve(self, data=None):
@@ -866,7 +926,6 @@ class DynamicGliderModel(ModelParameters, GliderModel):
         ----------
         data : dict or None
             environment data (see Notes)
-        
         Returns
         -------
         modelresult : Modelresult
@@ -889,7 +948,6 @@ class DynamicGliderModel(ModelParameters, GliderModel):
 
         if data is None:
             data = self.input_data
-            
         pitch = data['pitch']
         try:
             dhdt = data['dhdt']
@@ -917,10 +975,15 @@ class Calibrate(object):
         Logical operators are used to mask data:
 
         OR, AND, and NAND are implemented, and work on the *mask*
-
+    
+        Parameters
+        ----------
+        xtol : float
+            tolerance in error in the parameters to be minimised.
     '''
-    def __init__(self):
+    def __init__(self, xtol=1e-4):
         self.mask=None
+        self.xtol = xtol
         
     def set_mask(self,mask):
         '''Set a mask 
@@ -1019,9 +1082,10 @@ class Calibrate(object):
         '''
         if dhdt is None:
             dhdt = self.compute_dhdt(time, pressure)
-        self.input_data = dict(time=time ,pressure=pressure, pitch=pitch, buoyancy_change=buoyancy_change,
-                               density=density, dhdt=dhdt, u_relative=u_relative, w_relative=w_relative,
-                               U_relative=U_relative)
+        data = dict(time=time ,pressure=pressure, pitch=pitch, buoyancy_change=buoyancy_change,
+                    density=density, dhdt=dhdt, u_relative=u_relative, w_relative=w_relative,
+                    U_relative=U_relative)
+        self.input_data = data
         mask=np.zeros(time.shape,'int').astype(bool) # use all data by default
         self.set_mask(mask)
         
@@ -1133,10 +1197,11 @@ class Calibrate(object):
         setting the input data using the set_input_data() method, it is computed automatically. Other velocity
         components that are to be used to calibrate the model have to be set specifically.
         '''
+        self.input_data, weights = self.ensure_monotonicity(self.input_data,weights)
         constraints = self.__ensure_iterable(constraints)
         x0=[self.__dict__[i]/REFERENCE_VALUES[i] for i in p] # scale the parameters to order 1
         args = (p, constraints, weights, verbose)
-        R=fminimize(self.cost_function,x0,args=args,disp=False)
+        R=fminimize(self.cost_function,x0,args=args,disp=False, xtol=self.xtol)
         rv=dict([(k,v*REFERENCE_VALUES[k]) for k,v in zip(p,R)])
         return rv
 
@@ -1166,9 +1231,13 @@ class SteadyStateCalibrate(SteadyStateGliderModel, Calibrate):
 
 class DynamicCalibrate(DynamicGliderModel, Calibrate):
     ''' Dynamic glider flight model, with calibration interface '''
-    def __init__(self, rho0=None, k1=0.02, k2=0.92, dt = None):
-        DynamicGliderModel.__init__(self, dt=dt, rho0=rho0, k1=k1, k2=k2)
-        Calibrate.__init__(self)
+    def __init__(self, rho0=None, k1=0.02, k2=0.92, dt = None, alpha_linear=90, alpha_stall=90,
+                 max_depth_considered_surface=0.5, max_CPUs=None):
+        DynamicGliderModel.__init__(self, dt=dt, rho0=rho0, k1=k1, k2=k2,
+                                    alpha_linear=alpha_linear, alpha_stall=alpha_stall,
+                                    max_depth_considered_surface=max_depth_considered_surface,
+                                    max_CPUs=max_CPUs)
+        Calibrate.__init__(self, xtol=1e-2)
         
 
 
