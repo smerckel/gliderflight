@@ -115,10 +115,19 @@ class Model(object):
         else:
             raise ValueError('Unknown buoyancy engine. Accepted values: (shallow|deep)')
         dbd = dbdreader.MultiDBD(filenames=fns, complement_files = True)
-        tmp = dbd.get_CTD_sync("m_pitch", "m_battpos", buoyancy_variable)
-        (_,lat), (_,lon) = dbd.get("m_gps_lat", "m_gps_lon")
-        latitude = np.median(lat)
-        longitude = np.median(lon)
+        try:
+            tmp = dbd.get_CTD_sync("m_pitch", "m_battpos", buoyancy_variable)
+        except dbdreader.DbdError:
+            tmp = dbd.get_sync("sci_water_cond", "sci_water_temp", "sci_water_pressure",
+                               "m_pitch", "m_battpos", buoyancy_variable)
+        try:
+            (_,lat), (_,lon) = dbd.get("m_gps_lat", "m_gps_lon")
+        except dbdreader.DbdError:
+            latitude = float(input("Provide decimal latitude:"))
+            longitude = float(input("Provide decimal longitude:"))
+        else:
+            latitude = np.median(lat)
+            longitude = np.median(lon)
         condition = np.logical_and(tmp[2]>0.01, np.isfinite(np.sum(tmp, axis=0)))
         tctd, C, T, P, pitch, battpos, buoyancy_change = np.compress(condition, tmp, axis=1)
         SP = gsw.SP_from_C(C*10, T, P*10)
