@@ -11,11 +11,11 @@ from functools import partial
 import concurrent.futures
 from multiprocessing import cpu_count
 
-import warnings
-warnings.filterwarnings('error')
+#import warnings
+#warnings.filterwarnings('error')
 from logging import getLogger, INFO, basicConfig
 
-logger = getLogger()
+logger = getLogger('gliderflight')
 basicConfig(level=INFO)
 
 Modelresult = namedtuple("Modelresult", "t u w U alpha pitch ww")
@@ -884,7 +884,10 @@ class DynamicGliderModel(ModelParameters, GliderModel):
         else:
             logger.info("Forcing serial execution.")
             results=[]
-            for interval in intervals:
+            for i, interval in enumerate(intervals):
+                if i<2:
+                    continue
+                logger.info(f"Processing interval {i}/{len(intervals)}...")
                 results.append(self.process_fun(interval, **arg_funs))
         u, w = self.assemble_results(results, intervals)
         gamma = np.arctan2(w, u)
@@ -909,12 +912,17 @@ class DynamicGliderModel(ModelParameters, GliderModel):
     def process_fun(self, interval, **arg_funs):
         k, (t0, t1, tm) = interval
         fun = partial(self._integrate_rk45_fun, **arg_funs)
-        try:
+        if DEBUG_PARALLEL_EXECUTION:
+            # triggers an error if solve_ivp fails.
             result = solve_ivp(fun, (t0, t1), y0=np.array([0.,0.0]), t_eval=tm, first_step=0.25)
-        except ValueError as e:
-            m = f"Solving for interval {k} failed.\nInterval from {t0:.1f} - {t1:.1f}."
-            logger.error(m)
-            result = None
+        else:
+            # handle the error
+            try:
+                result = solve_ivp(fun, (t0, t1), y0=np.array([0.,0.0]), t_eval=tm, first_step=0.25)
+            except ValueError as e:
+                m = f"Solving for interval {k} failed.\nInterval from {t0:.1f} - {t1:.1f}."
+                logger.error(m)
+                result = None
         return result
 
     def solve(self, data=None):
