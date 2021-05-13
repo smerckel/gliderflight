@@ -362,7 +362,7 @@ class GliderModel(object):
             i = self.modelresult._fields.index(p)
             return self.modelresult[i]
 
-    def ensure_monotonicity(self, data, weights=None):
+    def remove_duplicate_time_entries(self, data):
         # remove any entries in data that have duplicate time stamps.
         t = data['time']
         condition = np.ones(t.shape, int)
@@ -372,9 +372,61 @@ class GliderModel(object):
                 data[k] = v.compress(condition)
         if not self.mask is None:
             self.mask = self.mask.compress(condition)
-        if not weights is None:
-            weights = weights.compress(condition)
-        return data, weights
+        return data
+
+    def ensure_monotonicity(self, data, T_search_span=600):
+        '''
+        Ensure monotonicity of the data series.
+
+        Parameters
+        ----------
+        data : dict
+             dictionary with environment data.
+        T_search_span : float (600)
+             time span to search back in time for time gaps
+        
+        Returns
+        -------
+        dict
+            dictionary with updated environment data.
+
+        Notes
+        -----
+
+        Some times the glider clock gets corrected when it deviates
+        too much from the GPS time. This happens of course at the
+        surface. It can be that time is stepped backwards, which
+        means that the timestamps are not monotonic any more. The
+        strategy we adopt here is, because it happens at the
+        surface, we look if there is a time gap (due to data
+        transmission for example) in the interval 10 minutes prior
+        the time shift. Then we simply move this section of time
+        backwards as well. If this is not possible, we undo the time
+        correction and move all timeseries forward in time.
+
+        '''
+        data = self.remove_duplicate_time_entries(data)
+        t = data['time']
+        indices = np.arange(t.shape[0])
+        delta_t = np.diff(t)
+        delta_t_mean = np.median(delta_t)
+        idx = np.where(np.diff(t)<0)[0]
+        #loop through all time shifts, if any:
+        for m in idx:
+            dt_inv = delta_t[m]
+            logger.info(f"Detected a time reversal of {dt_inv:.1f} seconds for t={t[m]:.0f} seconds.")
+            k = max(0, m-int(T_search_span * delta_t_mean))
+            dt_fwd = delta_t[k:m].max()    
+            if dt_fwd > -dt_inv + delta_t_mean:
+                # we can easily correct because there is a time forward larger then we move back in time, some time before T_search_span.
+                i = k + np.argmax(delta_t[k:m])
+                t[i+1:m+1] += dt_inv - delta_t_mean # delta_t_mean is required as not to create a time duplicate.
+                logger.info("Time reversal is repaired.")
+            else:
+                # just undo the time shift for all later timestamps
+                t[m+1:] -= dt_inv
+                logger.info("Time reversal is undone.")
+        return data
     
     @property        
     def t(self):
@@ -514,8 +566,11 @@ class SteadyStateGliderModel(ModelParameters, GliderModel):
         #
         idx = np.where(np.logical_and(np.abs(pitch)>=self.pitch_i.min(),
                                       np.abs(pitch)<=self.pitch_i.max()))[0]
-        aoa = np.zeros_like(pitch)
-        aoa[idx] = self.ifun(abs(pitch[idx]))*np.sign(pitch[idx])
+        if isinstance(pitch, float):
+            aoa = self.ifun(abs(pitch))*np.sign(pitch)
+        else:
+            aoa = np.zeros_like(pitch)
+            aoa[idx] = self.ifun(abs(pitch[idx]))*np.sign(pitch[idx])
         return aoa
         
     def solve_model(self, rho, FB, pitch, Fg):
@@ -527,8 +582,12 @@ class SteadyStateGliderModel(ModelParameters, GliderModel):
         
         q=(FB-Fg)*np.sin(pitch+alpha)/(self.Cd0+self.Cd1*alpha**2)
         Usquared=2.*q/rho/self.S
-        jdx = np.where(Usquared<0)[0]
-        Usquared[jdx]=0
+        if isinstance(Usquared, float):
+            if Usquared<0:
+                Usquared=0
+        else:
+            jdx = np.where(Usquared<0)[0]
+            Usquared[jdx]=0
         U = Usquared**0.5
         return alpha, U
 
@@ -641,26 +700,6 @@ class DynamicGliderModel(ModelParameters, GliderModel):
 
     def __init__(self, dt=None, rho0=None, k1=0.20, k2=0.92, alpha_linear=90, alpha_stall=90,
                  max_depth_considered_surface=0.5, max_CPUs=None):
-        ''' Constructor
-
-        :param dt: time step (s)
-        :param rho0: background density (kg m$^{-3}$)
-        :param k1: added mass fraction in longitudinal direction
-        :param k2: added mass fraction perpendicular to longitudinal direction
-        :param alpha_linear: angle in degree, up to where lift force is linear with angle of attack
-        :param alpha_stall: angle in degree where stall occurs
-        :param max_depth_considered_surface: depths shallower than this are considered at the surface and (u,v)=0
-        :param max_CPUs: maximimum number of CPUs to use for integrating. Clips at system available number of CPUs.
-        :type dt: float
-        :type rho0: float
-        :type k1: float
-        :type k2: float
-        :type alpha_linear: float
-        :type alpha_stall: float
-        :type max_depth_considered_surface: float
-        :type max_CPUs: int
-
-        '''
         ModelParameters.__init__(self, dict(aw=self.awEstimate, Cd1=self.cd1Estimate))
         GliderModel.__init__(self, rho0=rho0)
         self.k1 = k1
@@ -885,7 +924,7 @@ class DynamicGliderModel(ModelParameters, GliderModel):
             logger.info("Forcing serial execution.")
             results=[]
             for i, interval in enumerate(intervals):
-                if i<2:
+                if i<7:
                     continue
                 logger.info(f"Processing interval {i}/{len(intervals)}...")
                 results.append(self.process_fun(interval, **arg_funs))
@@ -945,6 +984,13 @@ class DynamicGliderModel(ModelParameters, GliderModel):
         density, as reported by the glider. Depth rate (dhdt) will be added if not already present.
         Other data are ignored.
 
+        The intergration of the model maps the results on the time vector. For this to work successfully
+        it is essential that there are no time duplicates or time reversals. The latter can occur when
+        the system clock is updated with GPS time. 
+
+        Use the methods :func:`~gliderflight.GliderModel.remove_duplicate_time_entries` and
+        :func:`~gliderflight.GliderModel.ensure_monotonicity`.
+
         Examples
         --------
         >>> dm = DynamciGliderModel(dt=1, k1=0.2, k2=0.98, rho0=1024)
@@ -956,6 +1002,7 @@ class DynamicGliderModel(ModelParameters, GliderModel):
 
         if data is None:
             data = self.input_data
+
         pitch = data['pitch']
         try:
             dhdt = data['dhdt']
@@ -1205,7 +1252,6 @@ class Calibrate(object):
         setting the input data using the set_input_data() method, it is computed automatically. Other velocity
         components that are to be used to calibrate the model have to be set specifically.
         '''
-        self.input_data, weights = self.ensure_monotonicity(self.input_data,weights)
         constraints = self.__ensure_iterable(constraints)
         x0=[self.__dict__[i]/REFERENCE_VALUES[i] for i in p] # scale the parameters to order 1
         args = (p, constraints, weights, verbose)
