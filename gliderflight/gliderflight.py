@@ -844,7 +844,14 @@ class DynamicGliderModel(ModelParameters, GliderModel):
                             m22_fun=None, Cd0_fun=None, at_surface_fun=None):
         u, w= uw
         if at_surface_fun(t):
-            uw1=np.array([0.0, 0.0])
+            uw1=np.array([0.0, 0.0]) # This has the effect that the
+                                     # *force* is set to zero, so the
+                                     # glider will be moving at
+                                     # constant speed during this
+                                     # time... We need to fix this after integration.
+            uw1 = -uw/5.    # this has the effect that the velocity
+                            # approaches 0 with a timescale of 5
+                            # seconds.
         else:
             U = (u**2 + w**2)**(0.5)
             _pitch = pitch_fun(t)
@@ -904,7 +911,7 @@ class DynamicGliderModel(ModelParameters, GliderModel):
         FBg_fun = interp1d(tm, FBg, **options)
         at_surface_fun = interp1d(tm, at_surface, **options)
         Cd0_fun = interp1d(tm, Cd0, **options)
-
+        self.tmp_at_surface_fun = at_surface_fun
         # function to integrate:
         arg_funs = dict(rho_fun=rho_fun, pitch_fun=pitch_fun,
                         FBg_fun = FBg_fun, m11_fun=m11_fun, m12_fun=m12_fun, m21_fun=m21_fun,
@@ -924,8 +931,8 @@ class DynamicGliderModel(ModelParameters, GliderModel):
             logger.info("Forcing serial execution.")
             results=[]
             for i, interval in enumerate(intervals):
-                if i<7:
-                    continue
+                #if i<7:
+                #    continue
                 logger.info(f"Processing interval {i}/{len(intervals)}...")
                 results.append(self.process_fun(interval, **arg_funs))
         u, w = self.assemble_results(results, intervals)
@@ -936,6 +943,7 @@ class DynamicGliderModel(ModelParameters, GliderModel):
         wr = -np.sin(pitch)*u + np.cos(pitch)*w
         return Modelresult(tm, u, w, Umag, alpha, pitch, dhdt-w)
 
+        
     def assemble_results(self, results, intervals):
         success = True
         y = []
