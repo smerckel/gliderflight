@@ -18,7 +18,7 @@ from logging import getLogger, INFO, basicConfig
 logger = getLogger('gliderflight')
 basicConfig(level=INFO)
 
-Modelresult = namedtuple("Modelresult", "t u w U alpha pitch ww")
+Modelresult = namedtuple("Modelresult", "t u w U alpha pitch ww depth")
 
 REFERENCE_VALUES = dict(Cd0=0.15, Vg=62, epsilon=5e-10, ah=3.8, mg=65)
 UNITS = defaultdict(lambda  : "-", Cd1="s^{-2}",S="m^2", mg="kg",
@@ -639,7 +639,7 @@ class SteadyStateGliderModel(ModelParameters, GliderModel):
         ug = np.cos(pitch+alpha)*U
         ww = dhdt - wg
         q, L,D = self.compute_lift_and_drag(alpha, U, rho)
-        self.modelresult = Modelresult(data["time"], ug, wg, U, alpha, pitch, ww)  
+        self.modelresult = Modelresult(data["time"], ug, wg, U, alpha, pitch, ww, ww*0)  
         return self.modelresult
     
 
@@ -842,13 +842,8 @@ class DynamicGliderModel(ModelParameters, GliderModel):
     def _integrate_rk45_fun(self, t, uw, rho_fun=None, pitch_fun=None, FBg_fun=None,
                             m11_fun=None, m12_fun=None, m21_fun=None,
                             m22_fun=None, Cd0_fun=None, at_surface_fun=None):
-        u, w= uw
+        u, w, z= uw
         if at_surface_fun(t):
-            uw1=np.array([0.0, 0.0]) # This has the effect that the
-                                     # *force* is set to zero, so the
-                                     # glider will be moving at
-                                     # constant speed during this
-                                     # time... We need to fix this after integration.
             uw1 = -uw/5.    # this has the effect that the velocity
                             # approaches 0 with a timescale of 5
                             # seconds.
@@ -860,7 +855,8 @@ class DynamicGliderModel(ModelParameters, GliderModel):
             Fx = -np.cos(_pitch + alpha) * D + np.sin(_pitch + alpha)*L
             Fy = -np.cos(_pitch + alpha) * L - np.sin(_pitch + alpha)*D + FBg_fun(t)
             uw1 = np.array([(m11_fun(t)*Fx + m12_fun(t)*Fy),
-                            (m21_fun(t)*Fx + m22_fun(t)*Fy)])
+                            (m21_fun(t)*Fx + m22_fun(t)*Fy),
+                            w])
         return uw1
 
         
@@ -935,13 +931,13 @@ class DynamicGliderModel(ModelParameters, GliderModel):
                 #    continue
                 logger.info(f"Processing interval {i}/{len(intervals)}...")
                 results.append(self.process_fun(interval, **arg_funs))
-        u, w = self.assemble_results(results, intervals)
+        u, w, z = self.assemble_results(results, intervals)
         gamma = np.arctan2(w, u)
         alpha = gamma - pitch
         Umag = (u**2 + w**2)**(0.5)
         ur = np.cos(pitch)*u + np.sin(pitch)*w
         wr = -np.sin(pitch)*u + np.cos(pitch)*w
-        return Modelresult(tm, u, w, Umag, alpha, pitch, dhdt-w)
+        return Modelresult(tm, u, w, Umag, alpha, pitch, dhdt-w, z)
 
         
     def assemble_results(self, results, intervals):
@@ -953,19 +949,19 @@ class DynamicGliderModel(ModelParameters, GliderModel):
                 continue 
             y.append(r.y)
             success &= r.success
-        u, w = np.hstack(y)
-        return u, w
+        u, w, z = np.hstack(y)
+        return u, w, z
         
     def process_fun(self, interval, **arg_funs):
         k, (t0, t1, tm) = interval
         fun = partial(self._integrate_rk45_fun, **arg_funs)
         if DEBUG_PARALLEL_EXECUTION:
             # triggers an error if solve_ivp fails.
-            result = solve_ivp(fun, (t0, t1), y0=np.array([0.,0.0]), t_eval=tm, first_step=0.25)
+            result = solve_ivp(fun, (t0, t1), y0=np.array([0.0,0.0, 0.0]), t_eval=tm, first_step=0.25)
         else:
             # handle the error
             try:
-                result = solve_ivp(fun, (t0, t1), y0=np.array([0.,0.0]), t_eval=tm, first_step=0.25)
+                result = solve_ivp(fun, (t0, t1), y0=np.array([0.0,0.0,0.0]), t_eval=tm, first_step=0.25)
             except ValueError as e:
                 m = f"Solving for interval {k} failed.\nInterval from {t0:.1f} - {t1:.1f}."
                 logger.error(m)
@@ -1176,6 +1172,22 @@ class Calibrate(object):
         -------
         mse : float
             RMS value of exposed measurements (not masked)
+
+
+        Constraints
+        -----------
+
+        Different constraints can be applied, and if more than one, their relative contribution is set with weights.
+
+        Valid options:
+        
+        dhdt : the error is computed from the difference between modelled w and observed dhdt
+        w_relative : the error is computed from the difference between modelled w and w_relative (set separately to data dictionary)
+        u_relative : the error is computed from the difference between modelled u and u_relative (set separately to data dictionary)
+        U_relative : the error is computed from the difference between modelled U and U_relative (set separately to data dictionary)
+        
+        depth : (experimental) the error is computed from the modelled and observed glider depth.
+
         '''
         # set the data
         kwds=dict([(_p,_x*REFERENCE_VALUES[_p]) for _p,_x in zip(parameters,x)])
@@ -1183,7 +1195,8 @@ class Calibrate(object):
         self.solve(self.input_data)
         U = self.modelresult.U
         alpha = self.modelresult.alpha
-
+        depth_mod = self.modelresult.depth
+        
         if not isinstance(weights, np.ndarray):
             weights = weights or np.ones_like(constraints, float)/len(constraints)
 
@@ -1208,6 +1221,9 @@ class Calibrate(object):
         else:
             if constraints[0] == 'dhdt' and len(constraints)==1:
                 error += weights * (w_mod - self.input_data['dhdt'])**2
+            elif constraints[0] == 'depth' and len(constraints)==1:
+                _rho_mean = self.input_data['density'].mean()
+                error += weights * (depth_mod + self.input_data['pressure']*1e5/9.81/_rho_mean)**2
             else:
                 raise NotImplementedError()
         error = error.compress(~self.mask)
