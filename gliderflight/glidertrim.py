@@ -173,7 +173,12 @@ class Model(object):
         print("Glider volume Vg       : %f (m^3)"%(self.model.Vg))
         print("Glider compressibility : %f (*e-10)"%(self.model.epsilon*1e10))
         print("Glider density         : %f (kg/m^3)"%((self.model.mg/self.model.Vg)))
-        print("Weight change          : %f (g)"%((settings['target_density']-(self.model.mg/self.model.Vg))*self.model.Vg*1000.))
+        weight_change = (settings['target_density']-(self.model.mg/self.model.Vg))*self.model.Vg*1000.
+        if weight_change <0:
+            s = "removed"
+        else:
+            s = "added"
+        print("Weight change          : %f (g) to be %s."%(abs(weight_change), s))
         #
         print()
         print("Estimated pitch relationship:")
