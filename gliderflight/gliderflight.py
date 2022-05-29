@@ -19,8 +19,9 @@ logger = getLogger('gliderflight')
 basicConfig(level=INFO)
 
 Modelresult = namedtuple("Modelresult", "t u w U alpha pitch ww depth")
+Diagnostics = namedtuple("Diagnostics", "t rho U FB FD FL")
 
-REFERENCE_VALUES = dict(Cd0=0.15, Vg=62, epsilon=5e-10, ah=3.8, mg=65)
+REFERENCE_VALUES = dict(Cd0=0.15, Vg=62, epsilon=5e-10, ah=3.8, mg=65, Cd1=10)
 UNITS = defaultdict(lambda  : "-", Cd1="s^{-2}",S="m^2", mg="kg",
                     Vg="m^3", Cd1_hull="s^{-2}", aw = "s^{-1}", ah="s^{-1}")
 
@@ -639,7 +640,9 @@ class SteadyStateGliderModel(ModelParameters, GliderModel):
         ug = np.cos(pitch+alpha)*U
         ww = dhdt - wg
         q, L,D = self.compute_lift_and_drag(alpha, U, rho)
-        self.modelresult = Modelresult(data["time"], ug, wg, U, alpha, pitch, ww, ww*0)  
+        self.modelresult = Modelresult(data["time"], ug, wg, U, alpha, pitch, ww, ww*0)
+        self.diagnostics = Diagnostics(data["time"], rho, U, FB, D, L)
+        
         return self.modelresult
     
 
