@@ -13,10 +13,10 @@ from multiprocessing import cpu_count
 
 #import warnings
 #warnings.filterwarnings('error')
-from logging import getLogger, INFO, basicConfig
+from logging import getLogger
 
 logger = getLogger('gliderflight')
-basicConfig(level=INFO)
+
 
 Modelresult = namedtuple("Modelresult", "t u w U alpha pitch ww depth")
 Diagnostics = namedtuple("Diagnostics", "t rho U FB FD FL")
