@@ -10,7 +10,6 @@ import numpy as np
 import matplotlib
 matplotlib.use('TkAgg')
 from matplotlib import pyplot
-from matplotlib.dates import epoch2num, DateFormatter
 
 import gsw
 
@@ -235,7 +234,6 @@ def main():
     model.report(results, ui.settings)
     model.graphic_report(results, ui.settings)
     input("Press enter to exit")
-
 
 
 

@@ -34,8 +34,17 @@ zero, for example. After reading the values, we simply remove odd ones.
 
 ::
 
-   tmp = dbd.get_sync("sci_ctd41cp_timestamp", "sci_water_temp sci_water_cond sci_water_pressure m_pitch m_ballast_pumped".split())
-   _, tctd, T, C, P, pitch, buoyancy_change = tmp.compress(tmp[1]>0, axis=1)
+   tmp = dbd.get_sync("sci_ctd41cp_timestamp", "sci_water_temp", "sci_water_cond", "sci_water_pressure", "m_pitch", "m_ballast_pumped")
+   _, tctd, T, C, P, pitch, buoyancy_change = np.compress(tmp[1]>0, tmp, axis=1)
+
+
+Since version 0.4.0 of ``dbdreader`` we can also MultiDBD's method
+get_CTD_sync():
+
+::
+   
+   tctd, T, C, P, pitch, buoyancy_change = dbd.get_CTD_sync("m_pitch", "m_ballast_pumped")
+
 
 In the example, we used the sensor name *m_ballast_pumped*, which is
 appropriate for a shallow glider. When data from a deep glider were
@@ -45,7 +54,10 @@ One of the input parameters to the glider flight model is the in-situ
 density. So let's compute that one first. For this, we use the Gibbs
 Seawater module, instllable using pip (for example, ``pip3
 install --user gsw``), or from source from
-https://github.com/TEOS-10/GSW-python.
+https://github.com/TEOS-10/GSW-python. Also, we need latitude and
+longitude information. This information could be retrieved from the
+glider parameters ``m_gps_lat`` and ``m_gps_lon``, condensed into a
+single scalar, as an array of same length as ``T``. 
 
 ::
 
@@ -73,7 +85,7 @@ instance from the SteadyStateCalibrate class. and populate it with the data we h
    gm = gliderflight.SteadyStateCalibrate(rho0=1024)
    gm.set_input_data(**data)
    # or, alternatively
-   # gm.set_input_data(tctd, P, m_pitch, buoyancy_change, density)
+   # gm.set_input_data(tctd, P, pitch, buoyancy_change, rho)
 
 When we calibrate a steady-state model, we don't want to include data
 points were we know the steady-state model is invalid, such as around
