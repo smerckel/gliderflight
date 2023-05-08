@@ -168,7 +168,7 @@ An example to calibrate a model::
    
    # if we want to run a model with a given set of parameters
 
-   fm = DynamicGLiderModel(dt=1, rho0=1024, k1=0.02, k2=0.92)
+   fm = DynamicGliderModel(dt=1, rho0=1024, k1=0.02, k2=0.92)
    # copy the settings from the steady state model
    fm.copy_settings(gm)
 
