@@ -13,6 +13,24 @@ turbulent dissipation rates from temperature microstructure or shear
 probe data, collected with a turbulence profiler mounted on top of an
 ocean glider.
 
+Changelog
+---------
+
+Version 1.2.0
+
+* Added paralel computing of solution for dynamic model
+* Added logging module for reporting of diagnostic messages
+* The named typle model_result now contains depth
+* Several small bug fixes
+
+Version 1.1.0
+
+* Small bug fixes
+
+Verions 1.0.0
+
+* Initial release
+
 Background
 ------------
 
