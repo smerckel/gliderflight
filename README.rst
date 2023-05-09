@@ -23,7 +23,7 @@ Version 1.2.0
 * The named typle model_result now contains depth
 * Several small bug fixes
 
-Version 1.1.0
+Version 1.0.1
 
 * Small bug fixes
 
