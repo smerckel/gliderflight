@@ -562,7 +562,7 @@ class SteadyStateGliderModel(ModelParameters, GliderModel):
                              args=(_pitch,self.Cd0),
                              full_output=1)
                 num_result, result, err, mesg = tmp
-                aoas[i] = num_result
+                aoas[i] = num_result.item()
             self.ifun = interp1d(self.pitch_i, aoas)
         #
         idx = np.where(np.logical_and(np.abs(pitch)>=self.pitch_i.min(),
