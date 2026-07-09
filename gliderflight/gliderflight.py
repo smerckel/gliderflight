@@ -562,7 +562,7 @@ class SteadyStateGliderModel(ModelParameters, GliderModel):
                              args=(_pitch,self.Cd0),
                              full_output=1)
                 num_result, result, err, mesg = tmp
-                aoas[i] = num_result.item()
+                aoas[i] = num_result
             self.ifun = interp1d(self.pitch_i, aoas)
         #
         idx = np.where(np.logical_and(np.abs(pitch)>=self.pitch_i.min(),
@@ -830,7 +830,7 @@ class DynamicGliderModel(ModelParameters, GliderModel):
         return M11, M12, M21, M22
 
     def _compute_time_intervals(self, ncpu, tm, lead_time=300):
-        dt = tm.ptp()/ncpu
+        dt = np.ptp(tm)/ncpu
         intervals = []
         for i in range(ncpu):
             t0=tm[0]+i*dt
