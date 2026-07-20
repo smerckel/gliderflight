@@ -1,0 +1,20 @@
+# Python virtual environment
+venv/
+.venv/
+# Compiled Python files
+*.pyc
+__pycache__/
+# PyCharm IDE files
+.idea/
+# Sandbox module
+sandbox.py
+# Locally built and installed module
+build/
+*.egg-info/
+dist/
+# pytest / caches
+.pytest_cache/
+# auto generated files:
+MANIFEST
+# emacs backup files
+*~

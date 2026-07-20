@@ -1,0 +1,68 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gliderflight"
+dynamic = ["version"]
+description = "Flight model for Slocum ocean gliders"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+authors = [
+    { name = "Lucas Merckelbach", email = "lucas.merckelbach@hereon.de" },
+]
+keywords = ["ocean gliders", "glider flight", "oceanography"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Environment :: Console",
+    "Natural Language :: English",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX",
+    "Programming Language :: Python :: 3",
+]
+dependencies = [
+    "numpy>=1.0.0",
+    "scipy>=1.0.0",
+    "dbdreader>=0.4.3",
+    "matplotlib>=2.0.0",
+    "gsw>=3.2.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/smerckel/gliderflight"
+Documentation = "https://gliderflight.readthedocs.io/en/latest/"
+Repository = "https://github.com/smerckel/gliderflight"
+
+[project.scripts]
+glidertrim = "gliderflight.glidertrim:main"
+
+[project.optional-dependencies]
+test = ["pytest"]
+docs = ["sphinx", "sphinx_rtd_theme", "myst-parser"]
+
+[tool.hatch.version]
+path = "gliderflight/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["gliderflight"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "gliderflight",
+    "examples/*.py",
+    "data/*.npy",
+    "tests",
+    "doc",
+    "README.md",
+    "LICENSE",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-m 'not slow'"
+markers = [
+    "slow: marks tests as slow (deselected by default; run with -m slow)",
+]
