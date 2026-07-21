@@ -1,30 +1,30 @@
-gliderflight package
-====================
+# gliderflight package
 
-Submodules
-----------
+## Submodules
 
-gliderflight.gliderflight module
---------------------------------
+### gliderflight.gliderflight module
 
+```{eval-rst}
 .. automodule:: gliderflight.gliderflight
    :members:
    :undoc-members:
    :show-inheritance:
+```
 
-gliderflight.glidertrim module
-------------------------------
+### gliderflight.glidertrim module
 
+```{eval-rst}
 .. automodule:: gliderflight.glidertrim
    :members:
    :undoc-members:
    :show-inheritance:
+```
 
+## Module contents
 
-Module contents
----------------
-
+```{eval-rst}
 .. automodule:: gliderflight
    :members:
    :undoc-members:
    :show-inheritance:
+```
