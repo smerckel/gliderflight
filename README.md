@@ -15,6 +15,12 @@ ocean glider.
 
 ## Changelog
 
+Version 1.2.1
+
+* Adds a bug fix contributed by isgiddy (Thanks!)
+* Modernizes package layout to be compatible with uv
+* Adds CI and PYPI publishing workflows
+
 Version 1.2.0
 
 * Added paralel computing of solution for dynamic model
